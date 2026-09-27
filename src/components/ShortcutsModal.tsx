@@ -64,9 +64,11 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
 
     // Playback & Shuttle
     { key: 'Space', desc: 'Play / Pause Toggle', category: 'playback', badge: 'Essential' },
-    { key: 'J', desc: 'Shuttle Reverse (Press repeatedly for 2x, 4x rewind)', category: 'playback' },
-    { key: 'K', desc: 'Shuttle Stop / Pause playback', category: 'playback' },
-    { key: 'L', desc: 'Shuttle Forward (Press repeatedly for 2x, 4x fast-forward)', category: 'playback' },
+    { key: 'J', desc: 'Shuttle Reverse (Press repeatedly for -1x, -2x, -4x variable rewind)', category: 'playback', badge: 'Essential' },
+    { key: 'K', desc: 'Shuttle Stop / Pause playback (Hold K as modifier)', category: 'playback', badge: 'Essential' },
+    { key: 'L', desc: 'Shuttle Forward (Press repeatedly for 1x, 2x, 4x variable fast-forward)', category: 'playback', badge: 'Essential' },
+    { key: 'K + L', desc: 'Step 1 Frame forward / Hold for 0.5x slow-motion forward scrub', category: 'playback' },
+    { key: 'K + J', desc: 'Step 1 Frame backward / Hold for -0.5x slow-motion reverse scrub', category: 'playback' },
     { key: '← / →', desc: 'Step 1 Frame Backward / Forward', category: 'playback' },
     { key: 'Shift + ← / →', desc: 'Step 5 Frames Backward / Forward', category: 'playback' },
     { key: '↑ / ↓', desc: 'Jump to Previous / Next Edit Point (Clip boundary)', category: 'playback' },

@@ -136,6 +136,29 @@ class AudioEngine {
     osc.stop(t + 0.2);
   }
 
+  public setPlaybackSpeed(timelineSpeed: number) {
+    if (!this.ctx || !this.isAudioPlaying) return;
+    const absSpeed = Math.max(0.25, Math.min(4, Math.abs(timelineSpeed)));
+    const now = this.ctx.currentTime;
+    try {
+      if (this.ambientOsc1) {
+        this.ambientOsc1.frequency.setTargetAtTime(110 * absSpeed, now, 0.05);
+      }
+      if (this.ambientOsc2) {
+        this.ambientOsc2.frequency.setTargetAtTime(55 * absSpeed, now, 0.05);
+      }
+      if (this.beatInterval) {
+        clearInterval(this.beatInterval);
+        this.beatInterval = window.setInterval(() => {
+          if (!this.ctx || !this.isAudioPlaying) return;
+          this.triggerKick();
+        }, 1200 / absSpeed);
+      }
+    } catch (err) {
+      console.warn('Error adjusting audio playback speed:', err);
+    }
+  }
+
   public stopPlayback() {
     this.isAudioPlaying = false;
 

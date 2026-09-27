@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { Clip, MediaItem, PremiereTool, Track, Marker, CineFlowProject } from './types/editor';
 import { 
@@ -196,7 +196,19 @@ export default function App() {
     }
   }, [history, historyIndex]);
 
-  // Playback Loop
+  // Synchronization Refs for 60fps Playback Loop & J-K-L Shuttle
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
+
+  const shuttleSpeedRef = useRef(shuttleSpeed);
+  shuttleSpeedRef.current = shuttleSpeed;
+
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const isKPressedRef = useRef(false);
+
+  // Playback Loop (smooth 60fps, decoupled from currentTime re-renders)
   useEffect(() => {
     if (!isPlaying) {
       audioEngine.stopPlayback();
@@ -206,10 +218,10 @@ export default function App() {
     const hasAudio = clips.some(
       (c) =>
         (c.type === 'audio' || c.mediaId.includes('audio')) &&
-        currentTime >= c.startTime &&
-        currentTime < c.startTime + c.duration
+        currentTimeRef.current >= c.startTime &&
+        currentTimeRef.current < c.startTime + c.duration
     );
-    audioEngine.startPlayback(hasAudio, Math.abs(shuttleSpeed));
+    audioEngine.startPlayback(hasAudio, Math.abs(shuttleSpeedRef.current));
 
     let lastTime = performance.now();
     let frameId: number;
@@ -217,13 +229,14 @@ export default function App() {
     const tick = (now: number) => {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
+      const speed = shuttleSpeedRef.current;
 
       setCurrentTime((prev) => {
-        const next = prev + dt * shuttleSpeed;
+        const next = prev + dt * speed;
         const endLimit = outPoint !== null ? outPoint : duration;
         const startLimit = inPoint !== null ? inPoint : 0;
 
-        if (shuttleSpeed > 0 && next >= endLimit) {
+        if (speed > 0 && next >= endLimit) {
           if (loop) {
             return startLimit;
           } else {
@@ -231,7 +244,7 @@ export default function App() {
             setShuttleSpeed(1);
             return endLimit;
           }
-        } else if (shuttleSpeed < 0 && next <= startLimit) {
+        } else if (speed < 0 && next <= startLimit) {
           if (loop) {
             return endLimit;
           } else {
@@ -252,12 +265,61 @@ export default function App() {
       cancelAnimationFrame(frameId);
       audioEngine.stopPlayback();
     };
-  }, [isPlaying, shuttleSpeed, duration, loop, inPoint, outPoint, clips, currentTime]);
+  }, [isPlaying, duration, loop, inPoint, outPoint, clips]);
+
+  // Adjust audio pitch & rhythm dynamically when shuttle speed changes
+  useEffect(() => {
+    if (isPlaying) {
+      audioEngine.setPlaybackSpeed(Math.abs(shuttleSpeed));
+    }
+  }, [shuttleSpeed, isPlaying]);
 
   // Master Volume update
   useEffect(() => {
     audioEngine.setMasterVolume(masterVolume);
   }, [masterVolume]);
+
+  // J-K-L Variable Speed Shuttle Handlers (1x -> 2x -> 4x and -1x -> -2x -> -4x)
+  const handleShuttleForward = useCallback(() => {
+    setIsPlaying(true);
+    setShuttleSpeed((prev) => {
+      // If paused or stopped, start forward at 1x
+      if (!isPlayingRef.current) {
+        return 1;
+      }
+      // If playing reverse, step down reverse or flip forward
+      if (prev <= -4) return -2;
+      if (prev <= -2) return -1;
+      if (prev < 0) return 1;
+      // If playing forward, increment speed: 1x -> 2x -> 4x
+      if (prev < 1) return 1;
+      if (prev < 2) return 2;
+      return 4; // cap at 4x
+    });
+  }, []);
+
+  const handleShuttleReverse = useCallback(() => {
+    setIsPlaying(true);
+    setShuttleSpeed((prev) => {
+      // If paused or stopped, start reverse at -1x
+      if (!isPlayingRef.current) {
+        return -1;
+      }
+      // If playing forward, step down forward or flip reverse
+      if (prev >= 4) return 2;
+      if (prev >= 2) return 1;
+      if (prev > 0) return -1;
+      // If playing reverse, increment reverse speed: -1x -> -2x -> -4x
+      if (prev > -1) return -1;
+      if (prev > -2) return -2;
+      return -4; // cap at -4x
+    });
+  }, []);
+
+  const handleShuttleStop = useCallback(() => {
+    setIsPlaying(false);
+    setShuttleSpeed(1);
+  }, []);
 
   // Transport Handlers
   const handleTogglePlay = useCallback(() => {
@@ -1100,27 +1162,36 @@ export default function App() {
         handleAddTitle();
       }
 
-      // J - K - L SHUTTLE CONTROLS
-      else if (e.code === 'KeyJ' && !e.ctrlKey && !e.metaKey) {
-        if (!isPlaying) {
-          setShuttleSpeed(-1);
-          setIsPlaying(true);
-        } else if (shuttleSpeed > 0) {
-          setShuttleSpeed(-1);
-        } else {
-          setShuttleSpeed((prev) => (prev <= -4 ? -4 : prev * 2));
-        }
-      } else if (e.code === 'KeyK' && !e.ctrlKey && !e.metaKey) {
-        setIsPlaying(false);
-        setShuttleSpeed(1);
+      // J - K - L VARIABLE SPEED SHUTTLE CONTROLS (-4x to 4x)
+      else if (e.code === 'KeyK' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        isKPressedRef.current = true;
+        handleShuttleStop();
       } else if (e.code === 'KeyL' && !e.ctrlKey && !e.metaKey) {
-        if (!isPlaying) {
-          setShuttleSpeed(1);
-          setIsPlaying(true);
-        } else if (shuttleSpeed < 0) {
-          setShuttleSpeed(1);
+        e.preventDefault();
+        if (isKPressedRef.current) {
+          // K + L held or tapped: step 1 frame forward or slow scrub
+          if (e.repeat) {
+            setIsPlaying(true);
+            setShuttleSpeed(0.5);
+          } else {
+            handleStepFrame(1);
+          }
         } else {
-          setShuttleSpeed((prev) => (prev >= 4 ? 4 : prev * 2));
+          handleShuttleForward();
+        }
+      } else if (e.code === 'KeyJ' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        if (isKPressedRef.current) {
+          // K + J held or tapped: step 1 frame backward or slow scrub
+          if (e.repeat) {
+            setIsPlaying(true);
+            setShuttleSpeed(-0.5);
+          } else {
+            handleStepFrame(-1);
+          }
+        } else {
+          handleShuttleReverse();
         }
       }
 
@@ -1301,8 +1372,25 @@ export default function App() {
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'KeyK') {
+        isKPressedRef.current = false;
+        if (Math.abs(shuttleSpeedRef.current) === 0.5) {
+          handleShuttleStop();
+        }
+      } else if (e.code === 'KeyJ' || e.code === 'KeyL') {
+        if (Math.abs(shuttleSpeedRef.current) === 0.5) {
+          handleShuttleStop();
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [
     handleTogglePlay,
     handleStepFrame,
@@ -1320,6 +1408,9 @@ export default function App() {
     handleJumpNextMarker,
     handleJumpPrevMarker,
     handleQuickSave,
+    handleShuttleForward,
+    handleShuttleReverse,
+    handleShuttleStop,
     currentTime,
     duration,
     selectedClipId,
@@ -1408,12 +1499,16 @@ export default function App() {
               inPoint={inPoint}
               outPoint={outPoint}
               loop={loop}
+              shuttleSpeed={shuttleSpeed}
               onTogglePlay={handleTogglePlay}
               onSeek={handleSeek}
               onStepFrame={(dir) => handleStepFrame(dir)}
               onSetInPoint={() => setInPoint(currentTime)}
               onSetOutPoint={() => setOutPoint(currentTime)}
               onToggleLoop={() => setLoop(!loop)}
+              onShuttleForward={handleShuttleForward}
+              onShuttleReverse={handleShuttleReverse}
+              onShuttleStop={handleShuttleStop}
             />
           </div>
 

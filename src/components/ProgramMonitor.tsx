@@ -28,12 +28,16 @@ interface ProgramMonitorProps {
   inPoint: number | null;
   outPoint: number | null;
   loop: boolean;
+  shuttleSpeed?: number;
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onStepFrame: (direction: -1 | 1) => void;
   onSetInPoint: () => void;
   onSetOutPoint: () => void;
   onToggleLoop: () => void;
+  onShuttleForward?: () => void;
+  onShuttleReverse?: () => void;
+  onShuttleStop?: () => void;
 }
 
 export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
@@ -47,12 +51,16 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
   inPoint,
   outPoint,
   loop,
+  shuttleSpeed = 1,
   onTogglePlay,
   onSeek,
   onStepFrame,
   onSetInPoint,
   onSetOutPoint,
   onToggleLoop,
+  onShuttleForward,
+  onShuttleReverse,
+  onShuttleStop,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -156,6 +164,18 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
                 : 'w-[480px] h-[270px]'
             }`}
           />
+
+          {/* Active Shuttle Speed HUD Overlay */}
+          {isPlaying && shuttleSpeed !== 1 && (
+            <div className="absolute top-3 right-3 pointer-events-none bg-black/85 backdrop-blur-md border border-neutral-700/80 px-2.5 py-1 rounded-md text-xs font-mono font-bold shadow-2xl flex items-center gap-1.5 animate-pulse z-20">
+              <span className={shuttleSpeed < 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                {shuttleSpeed < 0 ? '◀◀' : '▶▶'}
+              </span>
+              <span className="text-white">
+                {Math.abs(shuttleSpeed)}x {shuttleSpeed < 0 ? 'REVERSE' : 'FORWARD'}
+              </span>
+            </div>
+          )}
 
           {/* Empty Sequence Prompt */}
           {clips.length === 0 && (
@@ -303,9 +323,56 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
             </button>
           </div>
 
-          {/* Quick Shortcuts Pill */}
-          <div className="hidden sm:flex items-center gap-1 text-[11px] text-neutral-500">
-            <span className="bg-[#1c1c24] px-1.5 py-0.5 rounded text-[10px] text-neutral-400">J-K-L Shuttle</span>
+          {/* J-K-L Shuttle Controls & Active Speed Indicator */}
+          <div className="flex items-center gap-1.5">
+            {isPlaying && shuttleSpeed !== 1 && (
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 border animate-pulse ${
+                  shuttleSpeed < 0
+                    ? 'bg-rose-950/80 border-rose-500/50 text-rose-300'
+                    : 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                }`}
+              >
+                <span>{shuttleSpeed < 0 ? '◀◀' : '▶▶'}</span>
+                <span>{Math.abs(shuttleSpeed)}x</span>
+              </span>
+            )}
+
+            <div className="flex items-center bg-[#171720] rounded border border-[#272733] p-0.5 font-mono text-[10px]">
+              <button
+                onClick={() => onShuttleReverse?.()}
+                title="Shuttle Reverse (J: -1x, -2x, -4x)"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                  isPlaying && shuttleSpeed < 0
+                    ? 'bg-rose-500 text-black font-bold shadow-xs'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`}
+              >
+                J
+              </button>
+              <button
+                onClick={() => onShuttleStop?.()}
+                title="Shuttle Stop (K: Pause / Stop)"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                  !isPlaying
+                    ? 'bg-neutral-700 text-white font-bold shadow-xs'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`}
+              >
+                K
+              </button>
+              <button
+                onClick={() => onShuttleForward?.()}
+                title="Shuttle Forward (L: 1x, 2x, 4x)"
+                className={`px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                  isPlaying && shuttleSpeed > 0
+                    ? 'bg-emerald-500 text-black font-bold shadow-xs'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`}
+              >
+                L
+              </button>
+            </div>
           </div>
         </div>
       </div>
