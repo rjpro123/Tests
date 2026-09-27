@@ -111,15 +111,15 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   };
 
   return (
-    <header className="h-10 bg-[#121216] border-b border-[#222228] flex items-center justify-between px-3 shrink-0 select-none text-xs text-neutral-300 relative z-30">
+    <header className="h-10 bg-[#0d1226] border-b border-[#1b254a] flex items-center justify-between px-3 shrink-0 select-none text-xs text-neutral-300 relative z-30">
       {/* Left: Modern App Brand & Workspaces */}
       <div className="flex items-center gap-2.5">
         {/* Brand */}
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-emerald-600 via-teal-500 to-sky-400 flex items-center justify-center text-black shadow-sm">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-cyan-600 via-blue-500 to-indigo-400 flex items-center justify-center text-white shadow-sm shadow-blue-500/30">
             <Film className="w-3.5 h-3.5 stroke-[2.5]" />
           </div>
-          <span className="font-semibold text-white tracking-tight text-sm hidden md:inline">CineFlow</span>
+          <span className="font-bold text-white tracking-tight text-sm hidden md:inline">CineFlow</span>
         </div>
 
         {/* Project Name (Editable) */}
@@ -139,13 +139,13 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 }
               }}
               autoFocus
-              className="bg-[#1b1b24] text-white font-medium px-2 py-0.5 rounded border border-sky-500 text-xs outline-none max-w-[150px] sm:max-w-[200px]"
+              className="bg-[#152042] text-white font-medium px-2 py-0.5 rounded border border-sky-500 text-xs outline-none max-w-[150px] sm:max-w-[200px]"
             />
           ) : (
             <button
               onClick={() => setIsEditingName(true)}
               title="Click to rename sequence"
-              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[#1c1c24] text-neutral-300 hover:text-white transition-colors cursor-pointer group max-w-[130px] sm:max-w-[190px] truncate"
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[#152042] text-neutral-300 hover:text-white transition-colors cursor-pointer group max-w-[130px] sm:max-w-[190px] truncate"
             >
               <span className="font-medium truncate text-xs">{projectName}</span>
               {isUnsaved && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Unsaved changes" />}
@@ -160,8 +160,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
               isFileMenuOpen
-                ? 'bg-neutral-800 text-white'
-                : 'bg-[#18181f] hover:bg-[#202028] text-neutral-300 hover:text-white border border-[#272732]'
+                ? 'bg-[#1b254a] text-white'
+                : 'bg-[#131b36] hover:bg-[#1a254c] text-neutral-300 hover:text-white border border-[#1b254a]'
             }`}
           >
             <span>File</span>
@@ -169,7 +169,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </button>
 
           {isFileMenuOpen && (
-            <div className="absolute top-full left-0 mt-1 w-56 bg-[#16161f] border border-[#282836] rounded-lg shadow-2xl py-1 text-xs text-neutral-300 z-50 animate-fadeIn">
+            <div className="absolute top-full left-0 mt-1 w-56 bg-[#0f1738] border border-[#22306b] rounded-lg shadow-2xl py-1 text-xs text-neutral-300 z-50 animate-fadeIn">
               <button
                 onClick={() => {
                   handleSaveClick();

@@ -97,14 +97,14 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex-1 flex flex-col bg-[#0d0d11] border border-[#222228] overflow-hidden select-none"
+      className="flex-1 flex flex-col bg-[#0d1226] border border-[#1b254a] overflow-hidden select-none"
     >
       {/* Modern Header Bar */}
-      <div className="h-8 bg-[#131318] border-b border-[#222228] px-3 flex items-center justify-between text-xs text-neutral-400">
+      <div className="h-8 bg-[#131b36] border-b border-[#1b254a] px-3 flex items-center justify-between text-xs text-neutral-400">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-neutral-200">Program Monitor</span>
           <span className="text-neutral-600">•</span>
-          <span className="text-[11px] text-neutral-400 bg-[#1b1b22] px-2 py-0.5 rounded-full font-mono">
+          <span className="text-[11px] text-neutral-400 bg-[#1b254a] px-2 py-0.5 rounded-full font-mono border border-sky-500/20">
             1920×1080 @ {fps}fps
           </span>
         </div>
@@ -114,7 +114,7 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
           <select
             value={zoomMode}
             onChange={(e) => setZoomMode(e.target.value as 'fit' | '100%' | '50%')}
-            className="bg-[#1b1b22] text-neutral-300 text-xs px-2 py-1 rounded-md border border-[#272732] outline-none cursor-pointer"
+            className="bg-[#1b254a] text-neutral-300 text-xs px-2 py-1 rounded-md border border-[#28376e] outline-none cursor-pointer"
           >
             <option value="fit">Fit View</option>
             <option value="100%">100% Scale</option>
@@ -191,7 +191,7 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
       </div>
 
       {/* Modern Player Transport & Scrubber Bar */}
-      <div className="bg-[#121217] border-t border-[#222228] px-3 py-1.5 flex flex-col gap-1.5 shrink-0">
+      <div className="bg-[#0d1226] border-t border-[#1b254a] px-3 py-1.5 flex flex-col gap-1.5 shrink-0">
         {/* Scrubber Progress Bar */}
         <div
           className="relative h-2 bg-[#1c1c24] rounded-full cursor-pointer overflow-hidden group border border-[#272733]"

@@ -34,7 +34,6 @@ interface ProjectFileModalProps {
   onUpdateProjectName: (name: string) => void;
   onLoadProject: (project: CineFlowProject) => void;
   onNewProject: () => void;
-  onLoadDemoProject: () => void;
   lastSavedAt: string | null;
   onSaveCurrentProject: () => void;
 }
@@ -46,7 +45,6 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
   onUpdateProjectName,
   onLoadProject,
   onNewProject,
-  onLoadDemoProject,
   lastSavedAt,
   onSaveCurrentProject,
 }) => {
@@ -191,7 +189,7 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New & Templates</span>
+            <span>New Sequence</span>
           </button>
         </div>
 
@@ -406,57 +404,30 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: NEW & TEMPLATES */}
+          {/* TAB 3: NEW SEQUENCE */}
           {activeTab === 'new' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Blank Sequence */}
-                <div
-                  onClick={() => {
-                    if (confirm('Start a new blank sequence? Unsaved changes will be lost unless saved.')) {
-                      onNewProject();
-                      onClose();
-                    }
-                  }}
-                  className="p-4 rounded-xl bg-[#171720] hover:bg-[#1e1e29] border border-[#262633] hover:border-amber-500/50 cursor-pointer transition-all flex flex-col justify-between group"
-                >
-                  <div className="space-y-1.5">
-                    <div className="w-8 h-8 rounded-lg bg-amber-950/70 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                      <Plus className="w-4 h-4" />
-                    </div>
-                    <div className="font-semibold text-white text-sm">New Blank Sequence</div>
-                    <p className="text-[11px] text-neutral-400 leading-relaxed">
-                      Clears timeline clips and initializes clean video (V1, V2, V3) and audio (A1, A2, A3) tracks ready for editing.
-                    </p>
+              <div
+                onClick={() => {
+                  if (confirm('Start a new blank sequence? Unsaved changes will be lost unless saved.')) {
+                    onNewProject();
+                    onClose();
+                  }
+                }}
+                className="p-5 rounded-xl bg-[#171720] hover:bg-[#1e1e29] border border-[#262633] hover:border-sky-500/50 cursor-pointer transition-all flex flex-col justify-between group max-w-xl mx-auto"
+              >
+                <div className="space-y-2">
+                  <div className="w-9 h-9 rounded-lg bg-sky-950/70 border border-sky-500/40 flex items-center justify-center text-sky-400">
+                    <Plus className="w-5 h-5" />
                   </div>
-                  <button className="mt-3 w-full py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors cursor-pointer">
-                    Create Blank Project
-                  </button>
+                  <div className="font-semibold text-white text-sm">New Clean Sequence</div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Resets the timeline to a clean sequence with fresh video tracks (V1, V2, V3) and audio tracks (A1, A2, A3).
+                  </p>
                 </div>
-
-                {/* Reset to Demo Sequence */}
-                <div
-                  onClick={() => {
-                    if (confirm('Load pre-built sample demo sequence with stock clips & transitions?')) {
-                      onLoadDemoProject();
-                      onClose();
-                    }
-                  }}
-                  className="p-4 rounded-xl bg-[#171720] hover:bg-[#1e1e29] border border-[#262633] hover:border-purple-500/50 cursor-pointer transition-all flex flex-col justify-between group"
-                >
-                  <div className="space-y-1.5">
-                    <div className="w-8 h-8 rounded-lg bg-purple-950/70 border border-purple-500/40 flex items-center justify-center text-purple-400">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div className="font-semibold text-white text-sm">Load Demo Sequence</div>
-                    <p className="text-[11px] text-neutral-400 leading-relaxed">
-                      Loads a pre-arranged cinematic sequence showcasing color grading, picture-in-picture, audio waveforms, and transitions.
-                    </p>
-                  </div>
-                  <button className="mt-3 w-full py-1.5 rounded-lg bg-purple-500 hover:bg-purple-400 text-black font-semibold text-xs transition-colors cursor-pointer">
-                    Load Demo Sequence
-                  </button>
-                </div>
+                <button className="mt-4 w-full py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-black font-semibold text-xs transition-colors cursor-pointer">
+                  Create Blank Sequence
+                </button>
               </div>
             </div>
           )}

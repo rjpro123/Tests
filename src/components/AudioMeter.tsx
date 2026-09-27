@@ -56,7 +56,7 @@ export const AudioMeter: React.FC<AudioMeterProps> = ({
   const ticks = [0, -6, -12, -24, -48];
 
   return (
-    <div className="w-14 bg-[#101014] border-l border-[#222228] flex flex-col items-center py-2 select-none shrink-0 text-xs">
+    <div className="w-14 bg-[#0d1226] border-l border-[#1b254a] flex flex-col items-center py-2 select-none shrink-0 text-xs">
       <span className="font-semibold text-neutral-400 text-[10px] tracking-wider mb-1">VU dB</span>
 
       {/* Meter Columns & Labels */}

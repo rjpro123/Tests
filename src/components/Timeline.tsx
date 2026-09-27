@@ -59,6 +59,8 @@ interface TimelineProps {
   onToggleTrackVisible: (trackId: string) => void;
   onToggleTrackLock: (trackId: string) => void;
   onToggleTrackMute: (trackId: string) => void;
+  onToggleTrackSolo?: (trackId: string) => void;
+  onUpdateTrackVolume: (trackId: string, volume: number) => void;
   onSetZoom: (zoom: number) => void;
   onFitTimeline: () => void;
   onClearTimeline?: () => void;
@@ -98,6 +100,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   onToggleTrackVisible,
   onToggleTrackLock,
   onToggleTrackMute,
+  onToggleTrackSolo,
+  onUpdateTrackVolume,
   onSetZoom,
   onFitTimeline,
   onClearTimeline,
@@ -122,6 +126,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   }, [selectedClipIds, selectedClipId]);
 
   // Dragging states
+  const [showDbFormat, setShowDbFormat] = useState(false);
   const [isScrubbingRuler, setIsScrubbingRuler] = useState(false);
   const [trimmingClip, setTrimmingClip] = useState<{ id: string; side: 'left' | 'right'; startX: number; originalStart: number; originalDur: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ trackId: string; time: number } | null>(null);
@@ -715,10 +720,10 @@ export const Timeline: React.FC<TimelineProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex-1 flex flex-col bg-[#0d0d11] border border-[#222228] overflow-hidden select-none"
+      className="flex-1 flex flex-col bg-[#070a14] border border-[#1b254a] overflow-hidden select-none"
     >
       {/* Timeline Header Bar */}
-      <div className="h-8 bg-[#131318] border-b border-[#222228] px-3 flex items-center justify-between text-xs text-neutral-400">
+      <div className="h-8 bg-[#0d1226] border-b border-[#1b254a] px-3 flex items-center justify-between text-xs text-neutral-400">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-neutral-200">Timeline</span>
           <span className="text-neutral-600">•</span>
@@ -807,78 +812,199 @@ export const Timeline: React.FC<TimelineProps> = ({
       {/* Main Timeline Workspace (Track Headers on Left + Track Clips on Right) */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Track Headers Column */}
-        <div className="w-32 bg-[#101014] border-r border-[#222228] flex flex-col shrink-0 select-none z-10 text-xs">
+        <div className="w-56 bg-[#0d1226] border-r border-[#1b254a] flex flex-col shrink-0 select-none z-10 text-xs">
           {/* Top ruler placeholder align */}
-          <div className="h-6 bg-[#131318] border-b border-[#222228] px-2 flex items-center justify-between text-[11px] text-neutral-500 font-medium">
-            <span>TRACK</span>
-            <span>CONTROLS</span>
+          <div className="h-6 bg-[#131b36] border-b border-[#1b254a] px-2.5 flex items-center justify-between text-[11px] text-neutral-500 font-medium">
+            <span className="text-[10px] font-semibold text-neutral-400">TRACKS</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDbFormat((prev) => !prev)}
+                title="Toggle Gain Readout between Percentage (%) and Decibels (dB)"
+                className="text-[9px] font-mono px-1 py-0.2 rounded text-neutral-400 hover:text-white bg-[#191922] hover:bg-[#232330] border border-[#272736] cursor-pointer transition-colors"
+              >
+                {showDbFormat ? 'dB' : '%'}
+              </button>
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold">
+                <button
+                  onClick={() => onAddTrack('video')}
+                  title="Add Video Track"
+                  className="text-sky-400 hover:text-sky-300 cursor-pointer"
+                >
+                  +V
+                </button>
+                <button
+                  onClick={() => onAddTrack('audio')}
+                  title="Add Audio Track"
+                  className="text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                >
+                  +A
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Track Header Rows */}
           <div className="flex-1 overflow-y-hidden">
-            {tracks.map((track) => (
-              <div
-                key={track.id}
-                style={{ height: `${track.height}px` }}
-                className={`flex items-center justify-between px-2 border-b border-[#1c1c24] transition-colors ${
-                  track.type === 'video' ? 'bg-[#121217]' : 'bg-[#0f1412]'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`font-semibold text-xs px-1.5 py-0.5 rounded ${
-                      track.type === 'video'
-                        ? 'text-sky-400 bg-sky-950/60 border border-sky-500/30'
-                        : 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/30'
-                    }`}
-                  >
-                    {track.name}
-                  </span>
-                </div>
+            {tracks.map((track) => {
+              const currentVol = track.volume !== undefined ? track.volume : 1;
+              const isMuted = track.muted || currentVol === 0;
 
-                {/* Track Mute / Lock toggles */}
-                <div className="flex items-center gap-1">
-                  {track.type === 'video' ? (
-                    <button
-                      onClick={() => onToggleTrackVisible(track.id)}
-                      title={track.visible ? 'Hide Video Track' : 'Show Video Track'}
-                      className={`p-1 rounded cursor-pointer transition-colors ${
-                        track.visible
-                          ? 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-                          : 'text-amber-400 bg-amber-950/70'
-                      }`}
-                    >
-                      {track.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    </button>
-                  ) : (
+              const volumeToDbString = (vol: number): string => {
+                if (vol <= 0.001) return '-∞ dB';
+                const db = 20 * Math.log10(vol);
+                const sign = db > 0.05 ? '+' : '';
+                return `${sign}${db.toFixed(1)} dB`;
+              };
+
+              return (
+                <div
+                  key={track.id}
+                  style={{ height: `${track.height}px` }}
+                  className={`flex flex-col justify-center px-2.5 py-1 border-b border-[#1c1c24] transition-colors relative group/track select-none ${
+                    track.type === 'video' ? 'bg-[#121217] hover:bg-[#15151c]' : 'bg-[#0f1412] hover:bg-[#121815]'
+                  }`}
+                >
+                  {/* Row 1: Track Label & Header Toggles */}
+                  <div className="flex items-center justify-between gap-1 w-full leading-none">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className={`font-mono font-bold text-[10px] px-1.5 py-0.5 rounded shadow-xs ${
+                          track.type === 'video'
+                            ? 'text-sky-300 bg-sky-950/80 border border-sky-500/40'
+                            : 'text-emerald-300 bg-emerald-950/80 border border-emerald-500/40'
+                        }`}
+                      >
+                        {track.name}
+                      </span>
+                      <span className="text-[10px] text-neutral-400 font-medium truncate">
+                        {track.type === 'video' ? 'Video' : 'Audio'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {track.type === 'video' && (
+                        <button
+                          onClick={() => onToggleTrackVisible(track.id)}
+                          title={track.visible ? 'Hide Video Track Output (Eye)' : 'Show Video Track Output (Eye)'}
+                          className={`p-1 rounded cursor-pointer transition-colors ${
+                            track.visible
+                              ? 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                              : 'text-amber-400 bg-amber-950/70 border border-amber-500/40'
+                          }`}
+                        >
+                          {track.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+
+                      {/* Mute Track Audio (M) */}
+                      <button
+                        onClick={() => onToggleTrackMute(track.id)}
+                        title={track.muted ? 'Unmute Track Audio (M)' : 'Mute Track Audio (M)'}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          track.muted
+                            ? 'text-rose-400 bg-rose-950/70 border border-rose-500/40 font-bold'
+                            : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                        }`}
+                      >
+                        {track.muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {/* Solo Track Audio (S) for audio tracks */}
+                      {track.type === 'audio' && (
+                        <button
+                          onClick={() => onToggleTrackSolo?.(track.id)}
+                          title={track.solo ? 'Unsolo Audio Track (S)' : 'Solo Audio Track (S)'}
+                          className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded cursor-pointer transition-colors ${
+                            track.solo
+                              ? 'text-yellow-300 bg-yellow-950/80 border border-yellow-500/50 shadow-xs'
+                              : 'text-neutral-500 hover:text-white hover:bg-neutral-800'
+                          }`}
+                        >
+                          S
+                        </button>
+                      )}
+
+                      {/* Lock Track Toggle */}
+                      <button
+                        onClick={() => onToggleTrackLock(track.id)}
+                        title={track.locked ? 'Unlock Track' : 'Lock Track'}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          track.locked
+                            ? 'text-amber-400 bg-amber-950/70 border border-amber-500/40'
+                            : 'text-neutral-500 hover:text-white hover:bg-neutral-800'
+                        }`}
+                      >
+                        {track.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Track Volume Slider & Gain Controls */}
+                  <div className="flex items-center gap-1.5 w-full mt-1.5">
+                    {/* Volume Mute / Unmute Button */}
                     <button
                       onClick={() => onToggleTrackMute(track.id)}
-                      title={track.muted ? 'Unmute Audio Track' : 'Mute Audio Track'}
-                      className={`p-1 rounded cursor-pointer transition-colors ${
-                        track.muted
-                          ? 'text-rose-400 bg-rose-950/70'
-                          : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                      title={
+                        isMuted
+                          ? 'Click to Unmute Track Audio'
+                          : `Click to Mute Track Audio (Current: ${Math.round(currentVol * 100)}%)`
+                      }
+                      className={`shrink-0 cursor-pointer p-0.5 rounded transition-colors ${
+                        isMuted
+                          ? 'text-rose-400 hover:text-rose-300'
+                          : track.type === 'video'
+                          ? 'text-sky-400/80 hover:text-sky-300'
+                          : 'text-emerald-400/80 hover:text-emerald-300'
                       }`}
                     >
-                      {track.muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                      {isMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                     </button>
-                  )}
 
-                  {/* Lock */}
-                  <button
-                    onClick={() => onToggleTrackLock(track.id)}
-                    title={track.locked ? 'Unlock Track' : 'Lock Track'}
-                    className={`p-1 rounded cursor-pointer transition-colors ${
-                      track.locked
-                        ? 'text-amber-400 bg-amber-950/70'
-                        : 'text-neutral-500 hover:text-white hover:bg-neutral-800'
-                    }`}
-                  >
-                    {track.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                  </button>
+                    {/* Track Gain Fader Slider */}
+                    <div className="relative flex-1 flex items-center">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1.5"
+                        step="0.01"
+                        value={track.muted ? 0 : currentVol}
+                        onChange={(e) => onUpdateTrackVolume(track.id, parseFloat(e.target.value))}
+                        title={`Track Gain: ${Math.round(currentVol * 100)}% (${volumeToDbString(currentVol)}). Drag to adjust gain (0% to 150%)`}
+                        className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-[#22222e] transition-all ${
+                          track.muted ? 'opacity-40 grayscale' : 'opacity-85 hover:opacity-100'
+                        } ${
+                          track.type === 'video' ? 'accent-sky-400' : 'accent-emerald-400'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Gain Value Readout & Double-Click to Reset to 100% (0 dB) */}
+                    <button
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateTrackVolume(track.id, 1.0);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDbFormat((prev) => !prev);
+                      }}
+                      title={`Track Gain: ${Math.round(currentVol * 100)}% (${volumeToDbString(currentVol)}). Click to switch format, double-click to reset to 100% (0.0 dB)`}
+                      className={`text-[9px] font-mono px-1 py-0.5 rounded cursor-pointer select-none shrink-0 transition-colors ${
+                        track.muted
+                          ? 'text-rose-400 bg-rose-950/70 border border-rose-500/40 font-bold shadow-xs'
+                          : 'text-neutral-300 hover:text-white bg-[#1a1a24] hover:bg-[#252533] border border-[#2b2b3a]'
+                      }`}
+                    >
+                      {track.muted
+                        ? 'MUTE'
+                        : showDbFormat
+                        ? volumeToDbString(currentVol)
+                        : `${Math.round(currentVol * 100)}%`}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

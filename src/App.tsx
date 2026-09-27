@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { Clip, MediaItem, PremiereTool, Track, Marker, CineFlowProject } from './types/editor';
-import { 
-  INITIAL_CLIPS, 
-  INITIAL_MEDIA_ITEMS, 
-  INITIAL_TRACKS, 
-  STOCK_IMAGES 
-} from './utils/sampleMedia';
+import { INITIAL_TRACKS } from './utils/defaultTracks';
 import { audioEngine } from './utils/audioEngine';
 import { preloadImage } from './utils/compositor';
 import { initDriveAuth } from './utils/googleDrive';
@@ -43,7 +38,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Core Sequence State (clean empty timeline by default)
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(INITIAL_MEDIA_ITEMS);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [tracks, setTracks] = useState<Track[]>(INITIAL_TRACKS);
   const [clips, setClips] = useState<Clip[]>([]);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -53,7 +48,7 @@ export default function App() {
   const [zoom, setZoom] = useState<number>(65);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
-  const [selectedMediaId, setSelectedMediaId] = useState<string | null>('media-nature');
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [snapping, setSnapping] = useState<boolean>(true);
   const [loop, setLoop] = useState<boolean>(false);
   const [inPoint, setInPoint] = useState<number | null>(null);
@@ -100,13 +95,6 @@ export default function App() {
       }
     );
     return () => unsubscribe();
-  }, []);
-
-  // Preload initial stock images
-  useEffect(() => {
-    Object.values(STOCK_IMAGES).forEach((url) => {
-      preloadImage(url);
-    });
   }, []);
 
   // Compute dynamic total duration based on furthest clip
@@ -208,6 +196,45 @@ export default function App() {
 
   const isKPressedRef = useRef(false);
 
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+
+  const clipsRef = useRef(clips);
+  clipsRef.current = clips;
+
+  const calculateAudibleGain = useCallback((targetTime: number) => {
+    const activeClips = clipsRef.current.filter(
+      (c) =>
+        (c.type === 'audio' || c.mediaId.includes('audio') || c.type === 'video') &&
+        targetTime >= c.startTime &&
+        targetTime < c.startTime + c.duration
+    );
+    if (activeClips.length === 0) return { hasAudio: false, gain: 0 };
+
+    const currentTracks = tracksRef.current;
+    const hasSolo = currentTracks.some((t) => t.solo);
+    let totalGain = 0;
+    let count = 0;
+
+    activeClips.forEach((c) => {
+      const trk = currentTracks.find((t) => t.id === c.trackId);
+      if (!trk) return;
+      if (hasSolo && !trk.solo) return;
+      if (trk.muted) return;
+      const vol = typeof trk.volume === 'number' ? trk.volume : 1;
+      if (vol > 0.001) {
+        totalGain += vol;
+        count++;
+      }
+    });
+
+    const avg = count > 0 ? totalGain / count : 0;
+    return {
+      hasAudio: count > 0 && avg > 0.005,
+      gain: avg,
+    };
+  }, []);
+
   // Playback Loop (smooth 60fps, decoupled from currentTime re-renders)
   useEffect(() => {
     if (!isPlaying) {
@@ -215,13 +242,8 @@ export default function App() {
       return;
     }
 
-    const hasAudio = clips.some(
-      (c) =>
-        (c.type === 'audio' || c.mediaId.includes('audio')) &&
-        currentTimeRef.current >= c.startTime &&
-        currentTimeRef.current < c.startTime + c.duration
-    );
-    audioEngine.startPlayback(hasAudio, Math.abs(shuttleSpeedRef.current));
+    const { hasAudio, gain } = calculateAudibleGain(currentTimeRef.current);
+    audioEngine.startPlayback(hasAudio, Math.abs(shuttleSpeedRef.current), gain);
 
     let lastTime = performance.now();
     let frameId: number;
@@ -265,7 +287,15 @@ export default function App() {
       cancelAnimationFrame(frameId);
       audioEngine.stopPlayback();
     };
-  }, [isPlaying, duration, loop, inPoint, outPoint, clips]);
+  }, [isPlaying, duration, loop, inPoint, outPoint, calculateAudibleGain]);
+
+  // Adjust audio gain dynamically when track volume or mute/solo changes
+  useEffect(() => {
+    if (isPlaying) {
+      const { gain } = calculateAudibleGain(currentTimeRef.current);
+      audioEngine.setTrackGainMultiplier(gain);
+    }
+  }, [tracks, isPlaying, calculateAudibleGain]);
 
   // Adjust audio pitch & rhythm dynamically when shuttle speed changes
   useEffect(() => {
@@ -551,17 +581,53 @@ export default function App() {
     });
   }, [clips, pushHistory]);
 
-  // Track Toggles
+  // Track Toggles & Volume Gain Handlers
   const handleToggleTrackVisible = useCallback((trackId: string) => {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, visible: !t.visible } : t)));
+    setIsUnsaved(true);
   }, []);
 
   const handleToggleTrackLock = useCallback((trackId: string) => {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, locked: !t.locked } : t)));
+    setIsUnsaved(true);
   }, []);
 
   const handleToggleTrackMute = useCallback((trackId: string) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, muted: !t.muted } : t)));
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.id !== trackId) return t;
+        const newMuted = !t.muted;
+        return {
+          ...t,
+          muted: newMuted,
+          volume: newMuted ? t.volume : (t.volume === 0 ? 1 : t.volume),
+        };
+      })
+    );
+    setIsUnsaved(true);
+  }, []);
+
+  const handleToggleTrackSolo = useCallback((trackId: string) => {
+    setTracks((prev) =>
+      prev.map((t) => (t.id === trackId ? { ...t, solo: !t.solo } : t))
+    );
+    setIsUnsaved(true);
+  }, []);
+
+  const handleUpdateTrackVolume = useCallback((trackId: string, volume: number) => {
+    const clamped = Math.max(0, Math.min(1.5, volume));
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.id !== trackId) return t;
+        const shouldUnmute = t.muted && clamped > 0;
+        return {
+          ...t,
+          volume: clamped,
+          muted: shouldUnmute ? false : (clamped === 0 ? true : t.muted),
+        };
+      })
+    );
+    setIsUnsaved(true);
   }, []);
 
   // Fit Timeline to view (\)
@@ -1060,29 +1126,21 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
 
-  const handleLoadDemoProject = useCallback(() => {
-    setProjectId(`proj_${Date.now()}`);
-    setProjectName('CineFlow_Demo_Trailer');
-    setTracks(INITIAL_TRACKS);
-    setClips(INITIAL_CLIPS);
-    setMediaItems(INITIAL_MEDIA_ITEMS);
-    setMarkers([
-      { id: 'm1', time: 3.5, name: 'Scene 1 Cut', label: 'Scene 1 Cut', color: '#38bdf8' },
-      { id: 'm2', time: 9.0, name: 'Audio Drop', label: 'Audio Drop', color: '#22c55e' },
-      { id: 'm3', time: 14.2, name: 'Title In', label: 'Title In', color: '#f59e0b' },
-    ]);
-    setCurrentTime(0);
-    setHistory([{ clips: INITIAL_CLIPS, tracks: INITIAL_TRACKS }]);
-    setHistoryIndex(0);
-    setIsUnsaved(true);
-    setToastMessage('Loaded demo sequence');
-    setTimeout(() => setToastMessage(null), 2500);
-  }, []);
-
-  // Restore active project from local browser storage on first visit
+  // Restore active project from local browser storage on first visit (ignoring old template demo projects)
   useEffect(() => {
     const saved = loadActiveProjectFromLocalStorage();
     if (saved && saved.clips && saved.clips.length > 0) {
+      const isTemplateProject = 
+        saved.name === 'CineFlow_Demo_Trailer' || 
+        saved.clips.some((c) => c.mediaId?.startsWith('media-nature') || c.mediaId?.startsWith('media-neon'));
+      if (isTemplateProject) {
+        try {
+          localStorage.removeItem('cineflow_active_project');
+        } catch {
+          // ignore
+        }
+        return;
+      }
       handleLoadProject(saved);
     }
   }, [handleLoadProject]);
@@ -1423,7 +1481,7 @@ export default function App() {
   ]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0b0b0e] text-neutral-200 overflow-hidden select-none font-sans">
+    <div className="flex flex-col h-screen w-screen bg-[#070a14] text-neutral-200 overflow-hidden select-none font-sans">
       {/* Clean Top Header Bar */}
       <HeaderBar
         projectName={projectName}
@@ -1559,6 +1617,8 @@ export default function App() {
             onToggleTrackVisible={handleToggleTrackVisible}
             onToggleTrackLock={handleToggleTrackLock}
             onToggleTrackMute={handleToggleTrackMute}
+            onToggleTrackSolo={handleToggleTrackSolo}
+            onUpdateTrackVolume={handleUpdateTrackVolume}
             onSetZoom={setZoom}
             onFitTimeline={handleFitTimeline}
             onClearTimeline={handleClearTimeline}
@@ -1642,7 +1702,6 @@ export default function App() {
         onUpdateProjectName={setProjectName}
         onLoadProject={handleLoadProject}
         onNewProject={handleNewProject}
-        onLoadDemoProject={handleLoadDemoProject}
         lastSavedAt={lastSavedAt}
         onSaveCurrentProject={handleQuickSave}
       />

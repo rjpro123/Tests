@@ -107,10 +107,10 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
     <div
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
-      className="flex-1 flex flex-col bg-[#101014] border border-[#222228] overflow-hidden select-none text-xs"
+      className="flex-1 flex flex-col bg-[#0d1226] border border-[#1b254a] overflow-hidden select-none text-xs"
     >
       {/* Modern Tab Bar */}
-      <div className="h-8 bg-[#131318] border-b border-[#222228] px-2 flex items-center justify-between">
+      <div className="h-8 bg-[#131b36] border-b border-[#1b254a] px-2 flex items-center justify-between">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab('bin')}

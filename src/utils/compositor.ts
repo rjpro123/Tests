@@ -61,7 +61,7 @@ export function renderTimelineFrame({
 
   // Group video tracks from bottom (V1) to top (V3, V4...)
   const videoTracks = tracks
-    .filter((t) => t.type === 'video' && t.visible && !t.muted)
+    .filter((t) => t.type === 'video' && t.visible)
     .sort((a, b) => {
       // Track order: V1 at bottom, V2 above V1, V3 above V2
       const orderA = parseInt(a.name.replace(/\D/g, '') || '0', 10);

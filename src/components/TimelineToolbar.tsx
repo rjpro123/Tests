@@ -29,7 +29,7 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
   ];
 
   return (
-    <div className="w-10 bg-[#121216] border-r border-[#222228] flex flex-col items-center py-2 gap-1.5 select-none shrink-0 text-xs">
+    <div className="w-10 bg-[#0d1226] border-r border-[#1b254a] flex flex-col items-center py-2 gap-1.5 select-none shrink-0 text-xs">
       {tools.map((t) => {
         const Icon = t.icon;
         const isActive = activeTool === t.id;
@@ -40,8 +40,8 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
             title={`${t.label} (${t.shortcut})`}
             className={`w-7 h-7 rounded-md flex items-center justify-center transition-all cursor-pointer ${
               isActive
-                ? 'bg-sky-500 text-black shadow-xs font-semibold'
-                : 'text-neutral-400 hover:text-white hover:bg-[#1f1f26]'
+                ? 'bg-sky-500 text-black shadow-xs font-semibold shadow-sky-500/30'
+                : 'text-neutral-400 hover:text-white hover:bg-[#152042]'
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -55,7 +55,7 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
       <button
         onClick={onSplitAtPlayhead}
         title="Split Clip at Playhead (Ctrl+K)"
-        className="w-7 h-7 rounded-md bg-[#1a161f] hover:bg-[#282033] border border-amber-500/30 text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
+        className="w-7 h-7 rounded-md bg-[#131d3d] hover:bg-[#1a285c] border border-amber-500/40 text-amber-400 flex items-center justify-center transition-colors cursor-pointer shadow-xs"
       >
         <SplitSquareVertical className="w-4 h-4" />
       </button>

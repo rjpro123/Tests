@@ -67,7 +67,25 @@ class AudioEngine {
     }
   }
 
-  public startPlayback(hasAudioClips: boolean, timelineSpeed: number = 1) {
+  private trackGainMultiplier = 1.0;
+
+  public setTrackGainMultiplier(val: number) {
+    this.trackGainMultiplier = Math.max(0, Math.min(2, val));
+    if (this.ambientGain && this.ctx && this.isAudioPlaying) {
+      try {
+        const now = this.ctx.currentTime;
+        this.ambientGain.gain.setTargetAtTime(0.25 * this.trackGainMultiplier, now, 0.05);
+      } catch (e) {
+        console.warn('Error updating track gain multiplier:', e);
+      }
+    }
+  }
+
+  public getTrackGainMultiplier(): number {
+    return this.trackGainMultiplier;
+  }
+
+  public startPlayback(hasAudioClips: boolean, timelineSpeed: number = 1, initialTrackGain: number = 1) {
     this.init();
     if (!this.ctx || this.isAudioPlaying) return;
 
@@ -76,14 +94,15 @@ class AudioEngine {
     }
 
     this.isAudioPlaying = true;
+    this.trackGainMultiplier = Math.max(0, Math.min(2, initialTrackGain));
 
-    // If sequence has audio tracks active, play ambient cinematic soundscape & rhythm
-    if (hasAudioClips) {
+    // If sequence has audio tracks active and audible gain, play ambient cinematic soundscape & rhythm
+    if (hasAudioClips && this.trackGainMultiplier > 0.001) {
       try {
         const now = this.ctx.currentTime;
         this.ambientGain = this.ctx.createGain();
         this.ambientGain.gain.setValueAtTime(0.01, now);
-        this.ambientGain.gain.linearRampToValueAtTime(0.25, now + 0.1);
+        this.ambientGain.gain.linearRampToValueAtTime(0.25 * this.trackGainMultiplier, now + 0.1);
 
         this.ambientOsc1 = this.ctx.createOscillator();
         this.ambientOsc1.type = 'sawtooth';
@@ -118,7 +137,7 @@ class AudioEngine {
   }
 
   private triggerKick() {
-    if (!this.ctx || !this.masterGain) return;
+    if (!this.ctx || !this.masterGain || this.trackGainMultiplier <= 0.001) return;
     const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -126,7 +145,7 @@ class AudioEngine {
     osc.frequency.setValueAtTime(130, t);
     osc.frequency.exponentialRampToValueAtTime(35, t + 0.15);
 
-    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.setValueAtTime(0.3 * this.trackGainMultiplier, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
 
     osc.connect(gain);

@@ -3,8 +3,8 @@
 @layer base {
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #0b0b0e;
-    color: #e4e4e7;
+    background-color: #070a14;
+    color: #e2e8f0;
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -30,16 +30,17 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: #1b254a;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #28376e;
 }
 
 /* Modern Subtle Timeline Track Grid */
 .timeline-grid {
   background-size: 80px 100%;
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-image: linear-gradient(to right, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
 }
+
