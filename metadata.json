@@ -1,0 +1,6 @@
+{
+  "name": "CineFlow Studio - Pro Video Editor",
+  "description": "A high-performance non-linear video editor inspired by Adobe Premiere Pro with multi-track timeline, Lumetri color grading, effects, audio mixer, and real-time canvas rendering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
