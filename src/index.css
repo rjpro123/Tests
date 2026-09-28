@@ -2,20 +2,39 @@
 
 @layer base {
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: #070a14;
-    color: #e2e8f0;
+    color: #dce3f0;
     margin: 0;
     padding: 0;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+    text-rendering: optimizeLegibility;
   }
   
   .font-mono,
   .tabular-nums {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* Eye-Comfort Menu Text & Dropdown System */
+  .menu-text {
+    color: #cbd5e1;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+  }
+
+  .menu-text-muted {
+    color: #94a3b8;
+  }
+
+  .menu-item-hover:hover {
+    color: #f1f5f9;
+    background-color: #162044;
   }
 }
 

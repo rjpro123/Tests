@@ -10,9 +10,16 @@ import {
 import firebaseConfig from '../../firebase-applet-config.json';
 import { MediaItem } from '../types/editor';
 
-// Initialize Firebase
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// Initialize Firebase defensively
+let app: any = null;
+let authInstance: any = null;
+try {
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  authInstance = getAuth(app);
+} catch (e) {
+  console.warn('Firebase init warning:', e);
+}
+export const auth = authInstance;
 
 export const DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive.readonly',
@@ -29,6 +36,10 @@ export const initDriveAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (!auth) {
+    if (onAuthFailure) onAuthFailure();
+    return () => {};
+  }
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
@@ -46,6 +57,9 @@ export const initDriveAuth = (
 };
 
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  if (!auth) {
+    throw new Error('Google Authentication is unavailable');
+  }
   try {
     isSigningIn = true;
     const result = await signInWithPopup(auth, provider);
@@ -65,7 +79,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 };
 
 export const googleSignOut = async () => {
-  await signOut(auth);
+  if (auth) {
+    await signOut(auth);
+  }
   cachedAccessToken = null;
 };
 

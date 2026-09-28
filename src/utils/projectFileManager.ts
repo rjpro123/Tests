@@ -8,13 +8,13 @@ const SAVED_PROJECT_PREFIX = 'cineflow_project_data_';
  * Downloads the current project as a standalone portable file (.cineflow or .json).
  */
 export function exportProjectToFile(project: CineFlowProject, filename?: string): void {
-  const safeName = (filename || project.name || 'CineFlow_Project')
+  const safeName = (filename || project.name || 'Riley_Project')
     .trim()
     .replace(/[^a-zA-Z0-9_\-\.]/g, '_');
   
-  const finalFilename = safeName.endsWith('.cineflow') || safeName.endsWith('.json')
+  const finalFilename = safeName.endsWith('.riley') || safeName.endsWith('.cineflow') || safeName.endsWith('.json')
     ? safeName
-    : `${safeName}.cineflow`;
+    : `${safeName}.riley`;
 
   const projectJson = JSON.stringify(project, null, 2);
   const blob = new Blob([projectJson], { type: 'application/json' });

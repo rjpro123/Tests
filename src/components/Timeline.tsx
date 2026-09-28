@@ -18,9 +18,15 @@ import {
   Magnet,
   Bookmark,
   Music,
-  Film
+  Film,
+  Wand2,
+  Sparkles,
+  ChevronDown,
+  MoreVertical,
+  Type,
+  Upload
 } from 'lucide-react';
-import { Clip, MediaItem, PremiereTool, Track, MediaType, Marker } from '../types/editor';
+import { Clip, MediaItem, PremiereTool, Track, MediaType, Marker, TrackLayerType } from '../types/editor';
 import { formatTimecode, snapTime } from '../utils/timecode';
 import { generateWaveformFromDuration } from '../utils/waveform';
 
@@ -55,7 +61,10 @@ interface TimelineProps {
   onDeleteClip: (clipId: string) => void;
   onDeleteMultipleClips?: (clipIds: string[]) => void;
   onSplitClip: (clipId: string, splitTime: number) => void;
-  onAddTrack: (type: 'video' | 'audio') => void;
+  onAddTrack: (type: 'video' | 'audio', layerType?: TrackLayerType) => void;
+  onChangeTrackLayerType?: (trackId: string, layerType: TrackLayerType) => void;
+  onAddAdjustmentLayer?: (trackId?: string, time?: number) => void;
+  onAddEffectsLayer?: (trackId?: string, time?: number) => void;
   onToggleTrackVisible: (trackId: string) => void;
   onToggleTrackLock: (trackId: string) => void;
   onToggleTrackMute: (trackId: string) => void;
@@ -80,7 +89,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   clips,
   mediaMap,
   activeTool,
-  zoom,
+  zoom: rawZoom,
   selectedClipId,
   selectedClipIds,
   snapping,
@@ -97,6 +106,9 @@ export const Timeline: React.FC<TimelineProps> = ({
   onDeleteMultipleClips,
   onSplitClip,
   onAddTrack,
+  onChangeTrackLayerType,
+  onAddAdjustmentLayer,
+  onAddEffectsLayer,
   onToggleTrackVisible,
   onToggleTrackLock,
   onToggleTrackMute,
@@ -113,6 +125,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   onEditMarker,
   onDeleteMarker,
 }) => {
+  const zoom = Math.max(10, typeof rawZoom === 'number' && !isNaN(rawZoom) ? rawZoom : 65);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const tracksContainerRef = useRef<HTMLDivElement | null>(null);
@@ -125,11 +138,15 @@ export const Timeline: React.FC<TimelineProps> = ({
     return selectedClipId ? [selectedClipId] : [];
   }, [selectedClipIds, selectedClipId]);
 
-  // Dragging states
+  // Dragging & Layer Menu states
   const [showDbFormat, setShowDbFormat] = useState(false);
+  const [isAddTrackMenuOpen, setIsAddTrackMenuOpen] = useState(false);
+  const [activeTrackLayerMenuId, setActiveTrackLayerMenuId] = useState<string | null>(null);
   const [isScrubbingRuler, setIsScrubbingRuler] = useState(false);
   const [trimmingClip, setTrimmingClip] = useState<{ id: string; side: 'left' | 'right'; startX: number; originalStart: number; originalDur: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ trackId: string; time: number } | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const timelineDragCounterRef = useRef(0);
 
   // Visual Snapping Guide Overlay State
   const [snapGuide, setSnapGuide] = useState<SnapGuideInfo | null>(null);
@@ -769,20 +786,36 @@ export const Timeline: React.FC<TimelineProps> = ({
           {/* Add Track & Markers */}
           <div className="flex items-center gap-1">
             <button
-              onClick={() => onAddTrack('video')}
-              title="Add Video Track"
+              onClick={() => onAddTrack('video', 'media')}
+              title="Add Video Track (Media)"
               className="px-2 py-1 bg-[#16202c] hover:bg-[#1e2d3e] text-sky-400 border border-sky-500/30 rounded-md cursor-pointer text-xs font-medium transition-colors flex items-center gap-1"
             >
               <Plus className="w-3 h-3" />
               <span>Video</span>
             </button>
             <button
-              onClick={() => onAddTrack('audio')}
+              onClick={() => onAddTrack('audio', 'audio')}
               title="Add Audio Track"
               className="px-2 py-1 bg-[#13241b] hover:bg-[#1a3327] text-emerald-400 border border-emerald-500/30 rounded-md cursor-pointer text-xs font-medium transition-colors flex items-center gap-1"
             >
               <Plus className="w-3 h-3" />
               <span>Audio</span>
+            </button>
+            <button
+              onClick={() => onAddTrack('video', 'adjustment')}
+              title="Add Adjustment Layer Track (Non-destructive color grading & FX stack)"
+              className="px-2 py-1 bg-[#221735] hover:bg-[#2e1e47] text-purple-300 border border-purple-500/30 rounded-md cursor-pointer text-xs font-medium transition-colors flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3 text-purple-400" />
+              <span>Adjustment</span>
+            </button>
+            <button
+              onClick={() => onAddTrack('video', 'effects')}
+              title="Add FX & Overlays Track (AE particles, flares & procedural overlays)"
+              className="px-2 py-1 bg-[#29142b] hover:bg-[#381a3b] text-pink-300 border border-pink-500/30 rounded-md cursor-pointer text-xs font-medium transition-colors flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3 text-pink-400" />
+              <span>FX Track</span>
             </button>
 
             {onAddMarker && (
@@ -814,9 +847,9 @@ export const Timeline: React.FC<TimelineProps> = ({
         {/* Left Track Headers Column */}
         <div className="w-56 bg-[#0d1226] border-r border-[#1b254a] flex flex-col shrink-0 select-none z-10 text-xs">
           {/* Top ruler placeholder align */}
-          <div className="h-6 bg-[#131b36] border-b border-[#1b254a] px-2.5 flex items-center justify-between text-[11px] text-neutral-500 font-medium">
-            <span className="text-[10px] font-semibold text-neutral-400">TRACKS</span>
-            <div className="flex items-center gap-2">
+          <div className="h-6 bg-[#131b36] border-b border-[#1b254a] px-2.5 flex items-center justify-between text-[11px] text-neutral-500 font-medium relative">
+            <span className="text-[10px] font-semibold text-neutral-300">LAYER TRACKS</span>
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setShowDbFormat((prev) => !prev)}
                 title="Toggle Gain Readout between Percentage (%) and Decibels (dB)"
@@ -824,21 +857,82 @@ export const Timeline: React.FC<TimelineProps> = ({
               >
                 {showDbFormat ? 'dB' : '%'}
               </button>
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold">
+
+              {/* Add Track Multi-Choice Dropdown */}
+              <div className="relative">
                 <button
-                  onClick={() => onAddTrack('video')}
-                  title="Add Video Track"
-                  className="text-sky-400 hover:text-sky-300 cursor-pointer"
+                  onClick={() => setIsAddTrackMenuOpen(!isAddTrackMenuOpen)}
+                  title="Add Track (Media, Adjustment Layer, Effects Layer, or Audio)"
+                  className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-950/80 hover:bg-sky-900 border border-sky-500/40 text-sky-300 hover:text-white transition-colors cursor-pointer"
                 >
-                  +V
+                  <Plus className="w-3 h-3" />
+                  <span>Track</span>
+                  <ChevronDown className="w-2.5 h-2.5" />
                 </button>
-                <button
-                  onClick={() => onAddTrack('audio')}
-                  title="Add Audio Track"
-                  className="text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                >
-                  +A
-                </button>
+
+                {isAddTrackMenuOpen && (
+                  <div className="absolute top-full right-0 mt-1 w-52 bg-[#0d142d] border border-[#22326b] rounded-lg shadow-2xl py-1 text-xs text-slate-200 z-50 animate-fadeIn divide-y divide-[#1b254a]/60">
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          onAddTrack('video', 'media');
+                          setIsAddTrackMenuOpen(false);
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 hover:bg-[#18234d] text-left transition-colors cursor-pointer"
+                      >
+                        <Film className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-slate-100 text-xs">Video Track (Media)</div>
+                          <div className="text-[10px] text-slate-400">Footage, clips, images & titles</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          onAddTrack('video', 'adjustment');
+                          setIsAddTrackMenuOpen(false);
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 hover:bg-[#18234d] text-left transition-colors cursor-pointer"
+                      >
+                        <Wand2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-purple-300 text-xs">Adjustment Layer Track</div>
+                          <div className="text-[10px] text-slate-400">Non-destructive grading & FX stack</div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          onAddTrack('video', 'effects');
+                          setIsAddTrackMenuOpen(false);
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 hover:bg-[#18234d] text-left transition-colors cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-pink-300 text-xs">Effects & Overlays Track</div>
+                          <div className="text-[10px] text-slate-400">AE particles, flares, glitch, light</div>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          onAddTrack('audio', 'audio');
+                          setIsAddTrackMenuOpen(false);
+                        }}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 hover:bg-[#18234d] text-left transition-colors cursor-pointer"
+                      >
+                        <Music className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-emerald-300 text-xs">Audio Track (Sound)</div>
+                          <div className="text-[10px] text-slate-400">Dialogue, SFX & music stems</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -848,6 +942,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             {tracks.map((track) => {
               const currentVol = track.volume !== undefined ? track.volume : 1;
               const isMuted = track.muted || currentVol === 0;
+              const layerType: TrackLayerType = track.layerType || (track.type === 'audio' ? 'audio' : 'media');
 
               const volumeToDbString = (vol: number): string => {
                 if (vol <= 0.001) return '-∞ dB';
@@ -861,31 +956,91 @@ export const Timeline: React.FC<TimelineProps> = ({
                   key={track.id}
                   style={{ height: `${track.height}px` }}
                   className={`flex flex-col justify-center px-2.5 py-1 border-b border-[#1c1c24] transition-colors relative group/track select-none ${
-                    track.type === 'video' ? 'bg-[#121217] hover:bg-[#15151c]' : 'bg-[#0f1412] hover:bg-[#121815]'
+                    layerType === 'adjustment'
+                      ? 'bg-[#150f24] hover:bg-[#1c1430]'
+                      : layerType === 'effects'
+                      ? 'bg-[#1c0d1e] hover:bg-[#251228]'
+                      : track.type === 'video'
+                      ? 'bg-[#121217] hover:bg-[#15151c]'
+                      : 'bg-[#0f1412] hover:bg-[#121815]'
                   }`}
                 >
                   {/* Row 1: Track Label & Header Toggles */}
                   <div className="flex items-center justify-between gap-1 w-full leading-none">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span
-                        className={`font-mono font-bold text-[10px] px-1.5 py-0.5 rounded shadow-xs ${
-                          track.type === 'video'
-                            ? 'text-sky-300 bg-sky-950/80 border border-sky-500/40'
+                      {/* Interactive Track Role Badge */}
+                      <button
+                        onClick={() => {
+                          if (track.type === 'video') {
+                            const nextRole: TrackLayerType = 
+                              layerType === 'media' ? 'adjustment' : layerType === 'adjustment' ? 'effects' : 'media';
+                            onChangeTrackLayerType?.(track.id, nextRole);
+                          }
+                        }}
+                        title={`Track Role: ${layerType.toUpperCase()}. Click to toggle between Media, Adjustment, and Effects layer.`}
+                        className={`font-mono font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs cursor-pointer transition-all flex items-center gap-1 ${
+                          layerType === 'adjustment'
+                            ? 'text-purple-300 bg-purple-950/90 border border-purple-500/50 hover:bg-purple-900'
+                            : layerType === 'effects'
+                            ? 'text-pink-300 bg-pink-950/90 border border-pink-500/50 hover:bg-pink-900'
+                            : track.type === 'video'
+                            ? 'text-sky-300 bg-sky-950/80 border border-sky-500/40 hover:bg-sky-900'
                             : 'text-emerald-300 bg-emerald-950/80 border border-emerald-500/40'
                         }`}
                       >
-                        {track.name}
-                      </span>
-                      <span className="text-[10px] text-neutral-400 font-medium truncate">
-                        {track.type === 'video' ? 'Video' : 'Audio'}
+                        {layerType === 'adjustment' ? (
+                          <>
+                            <Wand2 className="w-2.5 h-2.5 text-purple-400" />
+                            <span>ADJ</span>
+                          </>
+                        ) : layerType === 'effects' ? (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5 text-pink-400" />
+                            <span>FX</span>
+                          </>
+                        ) : track.type === 'video' ? (
+                          <span>{track.name}</span>
+                        ) : (
+                          <span>{track.name}</span>
+                        )}
+                      </button>
+
+                      <span className="text-[10px] text-neutral-300 font-medium truncate max-w-[70px]">
+                        {layerType === 'adjustment'
+                          ? 'Adjustment'
+                          : layerType === 'effects'
+                          ? 'FX Layer'
+                          : track.type === 'video'
+                          ? 'Media'
+                          : 'Audio'}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-0.5 shrink-0">
+                      {/* Quick Add ADJ / FX to Track */}
+                      {layerType === 'adjustment' && onAddAdjustmentLayer && (
+                        <button
+                          onClick={() => onAddAdjustmentLayer(track.id, currentTime)}
+                          title="Insert Adjustment Layer at Playhead"
+                          className="p-1 rounded text-purple-300 hover:text-white hover:bg-purple-950 cursor-pointer transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      )}
+                      {layerType === 'effects' && onAddEffectsLayer && (
+                        <button
+                          onClick={() => onAddEffectsLayer(track.id, currentTime)}
+                          title="Insert Effects Layer at Playhead"
+                          className="p-1 rounded text-pink-300 hover:text-white hover:bg-pink-950 cursor-pointer transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      )}
+
                       {track.type === 'video' && (
                         <button
                           onClick={() => onToggleTrackVisible(track.id)}
-                          title={track.visible ? 'Hide Video Track Output (Eye)' : 'Show Video Track Output (Eye)'}
+                          title={track.visible ? 'Hide Track Output (Eye)' : 'Show Track Output (Eye)'}
                           className={`p-1 rounded cursor-pointer transition-colors ${
                             track.visible
                               ? 'text-neutral-400 hover:text-white hover:bg-neutral-800'
@@ -896,31 +1051,44 @@ export const Timeline: React.FC<TimelineProps> = ({
                         </button>
                       )}
 
-                      {/* Mute Track Audio (M) */}
-                      <button
-                        onClick={() => onToggleTrackMute(track.id)}
-                        title={track.muted ? 'Unmute Track Audio (M)' : 'Mute Track Audio (M)'}
-                        className={`p-1 rounded cursor-pointer transition-colors ${
-                          track.muted
-                            ? 'text-rose-400 bg-rose-950/70 border border-rose-500/40 font-bold'
-                            : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-                        }`}
-                      >
-                        {track.muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                      </button>
-
-                      {/* Solo Track Audio (S) for audio tracks */}
-                      {track.type === 'audio' && (
+                      {/* Audio Tracks: Explicit Mute (M) & Solo (S) Toggle Buttons */}
+                      {track.type === 'audio' ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => onToggleTrackMute(track.id)}
+                            title={track.muted ? 'Unmute Audio Track (M)' : 'Mute Audio Track (M)'}
+                            className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded cursor-pointer transition-all ${
+                              track.muted
+                                ? 'text-white bg-rose-600 border border-rose-400 shadow-xs'
+                                : 'text-slate-400 hover:text-white bg-[#191924] hover:bg-[#252538] border border-[#272738]'
+                            }`}
+                          >
+                            M
+                          </button>
+                          <button
+                            onClick={() => onToggleTrackSolo?.(track.id)}
+                            title={track.solo ? 'Unsolo Audio Track (S)' : 'Solo Audio Track (S)'}
+                            className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded cursor-pointer transition-all ${
+                              track.solo
+                                ? 'text-slate-950 bg-amber-400 border border-amber-300 shadow-xs font-black'
+                                : 'text-slate-400 hover:text-white bg-[#191924] hover:bg-[#252538] border border-[#272738]'
+                            }`}
+                          >
+                            S
+                          </button>
+                        </div>
+                      ) : (
+                        /* Video Tracks Audio Mute */
                         <button
-                          onClick={() => onToggleTrackSolo?.(track.id)}
-                          title={track.solo ? 'Unsolo Audio Track (S)' : 'Solo Audio Track (S)'}
-                          className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded cursor-pointer transition-colors ${
-                            track.solo
-                              ? 'text-yellow-300 bg-yellow-950/80 border border-yellow-500/50 shadow-xs'
-                              : 'text-neutral-500 hover:text-white hover:bg-neutral-800'
+                          onClick={() => onToggleTrackMute(track.id)}
+                          title={track.muted ? 'Unmute Track Audio (M)' : 'Mute Track Audio (M)'}
+                          className={`p-1 rounded cursor-pointer transition-colors ${
+                            track.muted
+                              ? 'text-rose-400 bg-rose-950/70 border border-rose-500/40 font-bold'
+                              : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
                           }`}
                         >
-                          S
+                          {track.muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                         </button>
                       )}
 
@@ -1135,9 +1303,64 @@ export const Timeline: React.FC<TimelineProps> = ({
           <div
             ref={tracksContainerRef}
             onMouseDown={handleTracksMouseDown}
+            onDragEnter={(e) => {
+              if (e.dataTransfer.types.includes('Files')) {
+                timelineDragCounterRef.current++;
+                setIsDraggingFiles(true);
+              }
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('Files')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                if (!isDraggingFiles) setIsDraggingFiles(true);
+              }
+            }}
+            onDragLeave={(e) => {
+              if (e.dataTransfer.types.includes('Files')) {
+                timelineDragCounterRef.current--;
+                if (timelineDragCounterRef.current <= 0) {
+                  timelineDragCounterRef.current = 0;
+                  setIsDraggingFiles(false);
+                }
+              }
+            }}
+            onDrop={(e) => {
+              timelineDragCounterRef.current = 0;
+              setIsDraggingFiles(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!scrollRef.current) return;
+                const rect = scrollRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left + scrollRef.current.scrollLeft;
+                const time = Math.max(0, x / zoom);
+                const targetTrack = tracks.find((t) => t.type === 'video') || tracks[0];
+                if (targetTrack) {
+                  onDropFiles?.(e.dataTransfer.files, targetTrack.id, time);
+                }
+              }
+            }}
             style={{ width: `${timelineWidth}px` }}
-            className="relative timeline-grid min-h-[300px]"
+            className={`relative timeline-grid min-h-[300px] transition-all ${
+              isDraggingFiles ? 'ring-2 ring-inset ring-sky-400/80 bg-sky-950/20' : ''
+            }`}
           >
+            {/* Interactive Canvas Drag & Drop Overlay */}
+            {isDraggingFiles && (
+              <div className="sticky left-6 top-6 z-50 pointer-events-none rounded-xl border-2 border-dashed border-sky-400 bg-[#091530]/90 backdrop-blur-md p-5 max-w-sm mx-auto shadow-2xl flex flex-col items-center justify-center text-center gap-1.5 animate-fadeIn">
+                <div className="w-9 h-9 rounded-full bg-sky-500/20 border border-sky-400/50 flex items-center justify-center text-sky-300">
+                  <Upload className="w-5 h-5 animate-bounce" />
+                </div>
+                <div className="text-white font-semibold text-xs tracking-wide">
+                  Drop Media to Add to Timeline
+                </div>
+                <div className="text-sky-300/80 text-[10px]">
+                  Video, audio, and image assets will load directly at drop timecode
+                </div>
+              </div>
+            )}
+
             {/* Subtle Marker Track Reference Lines */}
             {markers.map((marker) => {
               const leftPos = marker.time * zoom;
@@ -1153,11 +1376,15 @@ export const Timeline: React.FC<TimelineProps> = ({
               );
             })}
 
-            {/* Empty Timeline Prompt */}
-            {clips.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 text-neutral-500 text-xs">
-                <span className="bg-[#181822]/90 border border-neutral-800/80 px-4 py-2 rounded shadow-md text-neutral-400">
-                  Timeline is empty · Double-click media in the Media Bin or Google Drive to begin editing
+            {/* Empty Timeline Prompt with Dashed Drop Zone */}
+            {clips.length === 0 && !isDraggingFiles && (
+              <div className="absolute inset-x-8 inset-y-6 flex flex-col items-center justify-center pointer-events-none z-10 text-neutral-400 text-xs border border-dashed border-[#23315a] rounded-xl bg-[#090e24]/40 p-4">
+                <Upload className="w-6 h-6 text-sky-400/70 mb-2 stroke-[1.5]" />
+                <span className="text-neutral-200 font-semibold text-xs">
+                  Timeline Sequence is Empty
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5">
+                  Drag & drop video, audio, or image files here, or double-click items in Media Bin
                 </span>
               </div>
             )}
@@ -1342,10 +1569,24 @@ export const Timeline: React.FC<TimelineProps> = ({
                         style={{
                           left: `${left}px`,
                           width: `${width}px`,
-                          backgroundColor: clip.colorTag || (clip.type === 'audio' ? '#065f46' : '#0284c7'),
+                          backgroundColor: clip.colorTag || (
+                            clip.type === 'adjustment-layer'
+                              ? '#581c87'
+                              : clip.type === 'effects-layer'
+                              ? '#831843'
+                              : clip.type === 'title'
+                              ? '#78350f'
+                              : clip.type === 'audio'
+                              ? '#065f46'
+                              : '#0284c7'
+                          ),
                         }}
                         className={`absolute top-1 bottom-1 rounded-md border cursor-move flex items-center justify-between px-1.5 overflow-hidden select-none transition-shadow ${
-                          isGroupSelected
+                          clip.type === 'adjustment-layer'
+                            ? 'bg-gradient-to-r from-purple-900/90 via-indigo-900/80 to-purple-950/90 border-purple-400/80 shadow-purple-900/30'
+                            : clip.type === 'effects-layer'
+                            ? 'bg-gradient-to-r from-pink-900/90 via-fuchsia-900/80 to-purple-950/90 border-pink-400/80 shadow-pink-900/30'
+                            : isGroupSelected
                             ? 'border-sky-300 ring-2 ring-sky-300/80 shadow-md z-20 brightness-110'
                             : isSelected
                             ? 'border-white ring-2 ring-white/90 shadow-md z-20 brightness-105'
@@ -1384,12 +1625,28 @@ export const Timeline: React.FC<TimelineProps> = ({
                         {/* Clip Label & Metadata */}
                         <div className="flex items-center gap-1.5 truncate pointer-events-none text-white z-10 text-xs">
                           <span className="p-0.5 rounded bg-black/40 text-neutral-300">
-                            {clip.type === 'audio' || track.type === 'audio' ? (
+                            {clip.type === 'adjustment-layer' ? (
+                              <Wand2 className="w-3 h-3 text-purple-300" />
+                            ) : clip.type === 'effects-layer' ? (
+                              <Sparkles className="w-3 h-3 text-pink-300" />
+                            ) : clip.type === 'title' ? (
+                              <Type className="w-3 h-3 text-amber-300" />
+                            ) : clip.type === 'audio' || track.type === 'audio' ? (
                               <Music className="w-3 h-3 text-emerald-400" />
                             ) : (
                               <Film className="w-3 h-3 text-sky-400" />
                             )}
                           </span>
+                          {clip.type === 'adjustment-layer' && (
+                            <span className="text-[9px] bg-purple-950/90 text-purple-200 border border-purple-400/50 px-1 py-0.2 rounded font-mono font-bold">
+                              ADJ
+                            </span>
+                          )}
+                          {clip.type === 'effects-layer' && (
+                            <span className="text-[9px] bg-pink-950/90 text-pink-200 border border-pink-400/50 px-1 py-0.2 rounded font-mono font-bold">
+                              FX
+                            </span>
+                          )}
                           {activeTool === 'razor' && (
                             <span className="text-rose-300 font-bold bg-rose-950/70 px-1 rounded text-[10px]">CUT</span>
                           )}

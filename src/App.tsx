@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { Clip, MediaItem, PremiereTool, Track, Marker, CineFlowProject } from './types/editor';
+import { Clip, MediaItem, PremiereTool, Track, Marker, CineFlowProject, DEFAULT_AE_PLUGINS } from './types/editor';
 import { INITIAL_TRACKS } from './utils/defaultTracks';
 import { audioEngine } from './utils/audioEngine';
 import { preloadImage } from './utils/compositor';
@@ -23,14 +23,15 @@ import { AudioMeter } from './components/AudioMeter';
 import { ExportModal } from './components/ExportModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { GoogleDriveModal } from './components/GoogleDriveModal';
-import { AIVideoGeneratorModal } from './components/AIVideoGeneratorModal';
 import { MarkerModal } from './components/MarkerModal';
 import { ProjectFileModal } from './components/ProjectFileModal';
+import { AIAssistant } from './components/AIAssistant';
+import { AudioMixer } from './components/AudioMixer';
 
 export default function App() {
   // Project Identity & File Persistence State
   const [projectId, setProjectId] = useState<string>(() => `proj_${Date.now()}`);
-  const [projectName, setProjectName] = useState<string>('CineFlow_Seq_01');
+  const [projectName, setProjectName] = useState<string>('Riley_Seq_01');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isUnsaved, setIsUnsaved] = useState<boolean>(false);
   const [isProjectFileModalOpen, setIsProjectFileModalOpen] = useState<boolean>(false);
@@ -62,15 +63,111 @@ export default function App() {
 
   // Simplified Panel Visibility States
   const [showMediaBin, setShowMediaBin] = useState<boolean>(true);
-  const [showInspector, setShowInspector] = useState<boolean>(false);
+  const [showInspector, setShowInspector] = useState<boolean>(true);
+  const [showAudioMixer, setShowAudioMixer] = useState<boolean>(true);
+  const [showAIAssistant, setShowAIAssistant] = useState<boolean>(true);
+
+  // Resizable Workspace Layout Splits
+  const [verticalSplitPercent, setVerticalSplitPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('riley_vertical_split');
+    const parsed = parseFloat(saved || '');
+    return !isNaN(parsed) ? Math.min(80, Math.max(20, parsed)) : 50;
+  });
+  const [mediaBinWidth, setMediaBinWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('riley_mediabin_width');
+    const parsed = parseFloat(saved || '');
+    return !isNaN(parsed) ? Math.min(520, Math.max(160, parsed)) : 260;
+  });
+  const [inspectorWidth, setInspectorWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('riley_inspector_width');
+    const parsed = parseFloat(saved || '');
+    return !isNaN(parsed) ? Math.min(600, Math.max(240, parsed)) : 320;
+  });
+  const [audioMixerWidth, setAudioMixerWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('riley_audiomixer_width');
+    const parsed = parseFloat(saved || '');
+    return !isNaN(parsed) ? Math.min(600, Math.max(180, parsed)) : 240;
+  });
+
+  const [isDraggingVerticalSplit, setIsDraggingVerticalSplit] = useState<boolean>(false);
+  const [isDraggingMediaBin, setIsDraggingMediaBin] = useState<boolean>(false);
+  const [isDraggingInspector, setIsDraggingInspector] = useState<boolean>(false);
+  const [isDraggingAudioMixer, setIsDraggingAudioMixer] = useState<boolean>(false);
+
+  const workstationRef = useRef<HTMLDivElement | null>(null);
+  const upperDeckRef = useRef<HTMLDivElement | null>(null);
+
+  // Global Pointer Listeners for Smooth Resizing
+  useEffect(() => {
+    if (!isDraggingVerticalSplit && !isDraggingMediaBin && !isDraggingInspector && !isDraggingAudioMixer) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingVerticalSplit && workstationRef.current) {
+        const rect = workstationRef.current.getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+        const percent = Math.min(80, Math.max(20, (relativeY / rect.height) * 100));
+        setVerticalSplitPercent(percent);
+      }
+      if (isDraggingMediaBin && upperDeckRef.current) {
+        const rect = upperDeckRef.current.getBoundingClientRect();
+        const newWidth = Math.min(520, Math.max(160, e.clientX - rect.left));
+        setMediaBinWidth(newWidth);
+      }
+      if (isDraggingInspector && upperDeckRef.current) {
+        const rect = upperDeckRef.current.getBoundingClientRect();
+        const newWidth = Math.min(600, Math.max(240, rect.right - e.clientX));
+        setInspectorWidth(newWidth);
+      }
+      if (isDraggingAudioMixer && upperDeckRef.current) {
+        const rect = upperDeckRef.current.getBoundingClientRect();
+        const offset = showMediaBin ? mediaBinWidth : 0;
+        const newWidth = Math.min(600, Math.max(180, e.clientX - rect.left - offset));
+        setAudioMixerWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingVerticalSplit) {
+        setIsDraggingVerticalSplit(false);
+        localStorage.setItem('riley_vertical_split', String(verticalSplitPercent));
+      }
+      if (isDraggingMediaBin) {
+        setIsDraggingMediaBin(false);
+        localStorage.setItem('riley_mediabin_width', String(mediaBinWidth));
+      }
+      if (isDraggingInspector) {
+        setIsDraggingInspector(false);
+        localStorage.setItem('riley_inspector_width', String(inspectorWidth));
+      }
+      if (isDraggingAudioMixer) {
+        setIsDraggingAudioMixer(false);
+        localStorage.setItem('riley_audiomixer_width', String(audioMixerWidth));
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [
+    isDraggingVerticalSplit, 
+    isDraggingMediaBin, 
+    isDraggingInspector, 
+    isDraggingAudioMixer,
+    verticalSplitPercent, 
+    mediaBinWidth, 
+    inspectorWidth,
+    audioMixerWidth,
+    showMediaBin
+  ]);
 
   // Google Drive Integration State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [driveToken, setDriveToken] = useState<string | null>(null);
   const [isDriveOpen, setIsDriveOpen] = useState<boolean>(false);
-
-  // AI Video Creation Studio State
-  const [isAIVideoOpen, setIsAIVideoOpen] = useState<boolean>(false);
 
   // Modals
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
@@ -554,19 +651,25 @@ export default function App() {
     }
   }, [clips, currentTime, handleSelectClip]);
 
-  // Add Track
-  const handleAddTrack = useCallback((type: 'video' | 'audio') => {
+  // Add Track (Supports Media, Adjustment, Effects, and Audio layer roles)
+  const handleAddTrack = useCallback((type: 'video' | 'audio', layerType?: import('./types/editor').TrackLayerType) => {
     setTracks((prev) => {
+      const resolvedLayerType = layerType || (type === 'audio' ? 'audio' : 'media');
       const existing = prev.filter((t) => t.type === type);
       const count = existing.length + 1;
-      const id = `${type[0]}${count}`;
-      const name = `${type === 'video' ? 'V' : 'A'}${count}`;
+      const id = `${type === 'video' ? (resolvedLayerType === 'adjustment' ? 'adj' : resolvedLayerType === 'effects' ? 'fx' : 'v') : 'a'}${count}_${Date.now().toString().slice(-4)}`;
+      const name = resolvedLayerType === 'adjustment' 
+        ? `ADJ ${count}` 
+        : resolvedLayerType === 'effects' 
+        ? `FX ${count}` 
+        : `${type === 'video' ? 'V' : 'A'}${count}`;
 
       const newTrack: Track = {
         id,
         name,
         type,
-        height: 48,
+        layerType: resolvedLayerType,
+        height: 52,
         muted: false,
         solo: false,
         locked: false,
@@ -580,6 +683,126 @@ export default function App() {
       return next;
     });
   }, [clips, pushHistory]);
+
+  // Change Track Layer Type (Toggle between Media, Adjustment, Effects)
+  const handleChangeTrackLayerType = useCallback((trackId: string, layerType: import('./types/editor').TrackLayerType) => {
+    setTracks((prev) => {
+      const next = prev.map((t) => {
+        if (t.id !== trackId) return t;
+        const count = t.name.replace(/\D/g, '') || '1';
+        const newName = layerType === 'adjustment' 
+          ? `ADJ ${count}` 
+          : layerType === 'effects' 
+          ? `FX ${count}` 
+          : `V${count}`;
+        return {
+          ...t,
+          layerType,
+          name: newName,
+        };
+      });
+      pushHistory(clips, next);
+      return next;
+    });
+  }, [clips, pushHistory]);
+
+  // Non-Destructive Adjustment Layer Creator
+  const handleAddAdjustmentLayer = useCallback((targetTrackId?: string, time?: number) => {
+    const startTime = time !== undefined ? time : currentTime;
+    const dur = 6.0;
+
+    // Target track: preferred track or top video/adjustment track
+    let trackId = targetTrackId;
+    if (!trackId) {
+      const adjTrack = tracks.find((t) => t.type === 'video' && t.layerType === 'adjustment');
+      if (adjTrack) {
+        trackId = adjTrack.id;
+      } else {
+        const topVideo = tracks.find((t) => t.type === 'video');
+        trackId = topVideo ? topVideo.id : 'v3';
+      }
+    }
+
+    const count = clips.filter((c) => c.type === 'adjustment-layer').length + 1;
+    const newClip: Clip = {
+      id: `clip-adj-${Date.now()}`,
+      trackId,
+      mediaId: `media-adj-${Date.now()}`,
+      name: `Adjustment Layer ${count}`,
+      type: 'adjustment-layer',
+      startTime: Math.max(0, startTime),
+      duration: dur,
+      trimStart: 0,
+      speed: 1.0,
+      colorTag: '#581c87',
+      transform: { positionX: 0, positionY: 0, scale: 1, rotation: 0, opacity: 1, blendMode: 'normal' },
+      colorGrading: { exposure: 0, contrast: 15, highlights: 0, shadows: 0, temperature: 0, tint: 0, saturation: 110, vignette: 15, filmGrain: 0, lutPreset: 'none' },
+      effects: { gaussianBlur: 0, glitch: false, mirror: false, invert: false, blackAndWhite: false, edgeGlow: false },
+      plugins: DEFAULT_AE_PLUGINS,
+      audioSettings: { volume: 0, pan: 0, mute: false },
+      transitionIn: { type: 'none', duration: 0.5 },
+      transitionOut: { type: 'none', duration: 0.5 },
+    };
+
+    setClips((prev) => {
+      const next = [...prev, newClip];
+      pushHistory(next);
+      return next;
+    });
+
+    handleSelectClip(newClip.id);
+    setShowInspector(true);
+  }, [currentTime, tracks, clips, pushHistory, handleSelectClip]);
+
+  // Procedural Effects Layer Creator
+  const handleAddEffectsLayer = useCallback((targetTrackId?: string, time?: number) => {
+    const startTime = time !== undefined ? time : currentTime;
+    const dur = 6.0;
+
+    let trackId = targetTrackId;
+    if (!trackId) {
+      const fxTrack = tracks.find((t) => t.type === 'video' && t.layerType === 'effects');
+      if (fxTrack) {
+        trackId = fxTrack.id;
+      } else {
+        const topVideo = tracks.find((t) => t.type === 'video');
+        trackId = topVideo ? topVideo.id : 'v3';
+      }
+    }
+
+    const count = clips.filter((c) => c.type === 'effects-layer').length + 1;
+    const newClip: Clip = {
+      id: `clip-fx-${Date.now()}`,
+      trackId,
+      mediaId: `media-fx-${Date.now()}`,
+      name: `FX Layer ${count}`,
+      type: 'effects-layer',
+      startTime: Math.max(0, startTime),
+      duration: dur,
+      trimStart: 0,
+      speed: 1.0,
+      colorTag: '#831843',
+      transform: { positionX: 0, positionY: 0, scale: 1, rotation: 0, opacity: 1, blendMode: 'screen' },
+      colorGrading: { exposure: 0, contrast: 0, highlights: 0, shadows: 0, temperature: 0, tint: 0, saturation: 100, vignette: 0, filmGrain: 0, lutPreset: 'none' },
+      effects: { gaussianBlur: 0, glitch: false, mirror: false, invert: false, blackAndWhite: false, edgeGlow: false },
+      plugins: {
+        ...DEFAULT_AE_PLUGINS,
+        trapcodeParticles: { ...DEFAULT_AE_PLUGINS.trapcodeParticles, enabled: true },
+      },
+      audioSettings: { volume: 0, pan: 0, mute: false },
+      transitionIn: { type: 'none', duration: 0.5 },
+      transitionOut: { type: 'none', duration: 0.5 },
+    };
+
+    setClips((prev) => {
+      const next = [...prev, newClip];
+      pushHistory(next);
+      return next;
+    });
+
+    handleSelectClip(newClip.id);
+    setShowInspector(true);
+  }, [currentTime, tracks, clips, pushHistory, handleSelectClip]);
 
   // Track Toggles & Volume Gain Handlers
   const handleToggleTrackVisible = useCallback((trackId: string) => {
@@ -626,6 +849,21 @@ export default function App() {
           muted: shouldUnmute ? false : (clamped === 0 ? true : t.muted),
         };
       })
+    );
+    setIsUnsaved(true);
+  }, []);
+
+  const handleUpdateTrackPan = useCallback((trackId: string, pan: number) => {
+    const clamped = Math.max(-1, Math.min(1, pan));
+    setTracks((prev) =>
+      prev.map((t) => (t.id === trackId ? { ...t, pan: clamped } : t))
+    );
+    setIsUnsaved(true);
+  }, []);
+
+  const handleUpdateTrackEQ = useCallback((trackId: string, eq: { low: number; mid: number; high: number }) => {
+    setTracks((prev) =>
+      prev.map((t) => (t.id === trackId ? { ...t, eqSettings: eq } : t))
     );
     setIsUnsaved(true);
   }, []);
@@ -757,7 +995,7 @@ export default function App() {
   }, [currentTime, pushHistory, handleSelectClip]);
 
   // Import User Local Files
-  const handleImportFiles = useCallback((files: FileList) => {
+  const handleImportFiles = useCallback((files: FileList | File[]) => {
     Array.from(files).forEach((file) => {
       const url = URL.createObjectURL(file);
       const isVideo = file.type.startsWith('video');
@@ -937,14 +1175,122 @@ export default function App() {
     const clip = clips.find((c) => c.id === clipId);
     if (!clip) return;
 
-    if (effectId === 'gaussian-blur') {
+    const currentPlugins = clip.plugins || DEFAULT_AE_PLUGINS;
+
+    if (effectId === 'ae-optical-flares') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          opticalFlares: { ...currentPlugins.opticalFlares, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-trapcode-particles') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          trapcodeParticles: { ...currentPlugins.trapcodeParticles, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-deep-glow') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          deepGlow: { ...currentPlugins.deepGlow, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-chromatic-aberration') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          chromaticAberration: { ...currentPlugins.chromaticAberration, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-vhs-glitch') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          vhsGlitch: { ...currentPlugins.vhsGlitch, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-wave-displacement') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          waveDisplacement: { ...currentPlugins.waveDisplacement, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-light-rays') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          lightRays: { ...currentPlugins.lightRays, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'ae-halftone') {
+      handleUpdateClip({
+        ...clip,
+        plugins: {
+          ...currentPlugins,
+          halftone: { ...currentPlugins.halftone, enabled: true },
+        },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'lut-teal-orange') {
+      handleUpdateClip({
+        ...clip,
+        colorGrading: { ...clip.colorGrading, exposure: 5, contrast: 20, temperature: 10, tint: -5, saturation: 120, vignette: 25, lutPreset: 'teal-orange' },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'lut-cyberpunk') {
+      handleUpdateClip({
+        ...clip,
+        colorGrading: { ...clip.colorGrading, exposure: 10, contrast: 30, temperature: -25, tint: 25, saturation: 140, vignette: 35, lutPreset: 'cyberpunk' },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'lut-vintage-film') {
+      handleUpdateClip({
+        ...clip,
+        colorGrading: { ...clip.colorGrading, exposure: -5, contrast: -10, temperature: 15, tint: 8, saturation: 85, filmGrain: 25, vignette: 30, lutPreset: 'vintage-film' },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'lut-monochrome') {
+      handleUpdateClip({
+        ...clip,
+        colorGrading: { ...clip.colorGrading, exposure: 0, contrast: 40, saturation: 0, filmGrain: 20, vignette: 40, lutPreset: 'monochrome' },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'lut-warm-sunset') {
+      handleUpdateClip({
+        ...clip,
+        colorGrading: { ...clip.colorGrading, exposure: 8, contrast: 15, temperature: 30, tint: 10, saturation: 125, vignette: 20, lutPreset: 'warm-sunset' },
+      });
+      setShowInspector(true);
+    } else if (effectId === 'gaussian-blur') {
       handleUpdateClip({ ...clip, effects: { ...clip.effects, gaussianBlur: 14 } });
+      setShowInspector(true);
     } else if (effectId === 'glitch') {
       handleUpdateClip({ ...clip, effects: { ...clip.effects, glitch: !clip.effects.glitch } });
+      setShowInspector(true);
     } else if (effectId === 'black-and-white') {
       handleUpdateClip({ ...clip, effects: { ...clip.effects, blackAndWhite: true } });
+      setShowInspector(true);
     } else if (effectId === 'edge-glow') {
       handleUpdateClip({ ...clip, effects: { ...clip.effects, edgeGlow: true } });
+      setShowInspector(true);
     } else if (effectId === 'cross-dissolve') {
       handleUpdateClip({ ...clip, transitionIn: { type: 'cross-dissolve', duration: 0.8 } });
     } else if (effectId === 'dip-to-black') {
@@ -954,28 +1300,25 @@ export default function App() {
     }
   }, [clips, handleUpdateClip]);
 
-  // Apply Effect to selected clip from Project Bin
+  // Apply Effect to selected clip from Project Bin or Top Right Menu
   const handleApplyEffectToSelected = useCallback((effectId: string) => {
-    if (!selectedClipId) return;
-    const clip = clips.find((c) => c.id === selectedClipId);
-    if (!clip) return;
+    let targetId = selectedClipId;
 
-    if (effectId === 'gaussian-blur') {
-      handleUpdateClip({ ...clip, effects: { ...clip.effects, gaussianBlur: 14 } });
-    } else if (effectId === 'glitch') {
-      handleUpdateClip({ ...clip, effects: { ...clip.effects, glitch: !clip.effects.glitch } });
-    } else if (effectId === 'black-and-white') {
-      handleUpdateClip({ ...clip, effects: { ...clip.effects, blackAndWhite: true } });
-    } else if (effectId === 'edge-glow') {
-      handleUpdateClip({ ...clip, effects: { ...clip.effects, edgeGlow: true } });
-    } else if (effectId === 'cross-dissolve') {
-      handleUpdateClip({ ...clip, transitionIn: { type: 'cross-dissolve', duration: 0.8 } });
-    } else if (effectId === 'dip-to-black') {
-      handleUpdateClip({ ...clip, transitionIn: { type: 'dip-to-black', duration: 0.6 } });
-    } else if (effectId === 'wipe-left') {
-      handleUpdateClip({ ...clip, transitionIn: { type: 'wipe-left', duration: 0.6 } });
+    if (!targetId) {
+      // Find clip under playhead
+      const underPlayhead = clips.filter((c) => currentTime >= c.startTime && currentTime < c.startTime + c.duration);
+      if (underPlayhead.length > 0) {
+        targetId = underPlayhead[underPlayhead.length - 1].id;
+        handleSelectClip(targetId);
+      } else if (clips.length > 0) {
+        targetId = clips[0].id;
+        handleSelectClip(targetId);
+      }
     }
-  }, [selectedClipId, clips, handleUpdateClip]);
+
+    if (!targetId) return;
+    handleApplyEffectToClip(targetId, effectId);
+  }, [selectedClipId, clips, currentTime, handleSelectClip, handleApplyEffectToClip]);
 
   // Marker Management Handlers (M / Shift+M / Navigation / Snapping)
   const handleAddMarker = useCallback((time?: number) => {
@@ -1085,7 +1428,30 @@ export default function App() {
   const handleLoadProject = useCallback((project: CineFlowProject) => {
     setProjectId(project.id || `proj_${Date.now()}`);
     setProjectName(project.name || 'Imported Project');
-    setTracks(project.tracks && project.tracks.length > 0 ? project.tracks : INITIAL_TRACKS);
+    
+    // Sanitize loaded tracks to prevent missing properties (like volume or pan) from older saved schemas
+    const sanitizedTracks = (project.tracks && project.tracks.length > 0 ? project.tracks : INITIAL_TRACKS).map((t) => {
+      const template = INITIAL_TRACKS.find((it) => it.id === t.id) || {
+        volume: 1,
+        pan: 0,
+        muted: false,
+        solo: false,
+        locked: false,
+        visible: true,
+      };
+      return {
+        ...template,
+        ...t,
+        volume: typeof t.volume === 'number' && !isNaN(t.volume) ? t.volume : (typeof template.volume === 'number' ? template.volume : 1),
+        pan: typeof t.pan === 'number' && !isNaN(t.pan) ? t.pan : (typeof template.pan === 'number' ? template.pan : 0),
+        muted: t.muted !== undefined ? t.muted : (template.muted !== undefined ? template.muted : false),
+        solo: t.solo !== undefined ? t.solo : (template.solo !== undefined ? template.solo : false),
+        locked: t.locked !== undefined ? t.locked : (template.locked !== undefined ? template.locked : false),
+        visible: t.visible !== undefined ? t.visible : (template.visible !== undefined ? template.visible : true),
+      };
+    });
+
+    setTracks(sanitizedTracks);
     setClips(project.clips || []);
     if (project.markers) setMarkers(project.markers);
     if (project.mediaItems && project.mediaItems.length > 0) {
@@ -1102,7 +1468,7 @@ export default function App() {
     if (typeof project.masterVolume === 'number') setMasterVolume(project.masterVolume);
     if (project.snapping !== undefined) setSnapping(project.snapping);
 
-    setHistory([{ clips: project.clips || [], tracks: project.tracks || INITIAL_TRACKS }]);
+    setHistory([{ clips: project.clips || [], tracks: sanitizedTracks }]);
     setHistoryIndex(0);
     setLastSavedAt(project.updatedAt || new Date().toISOString());
     setIsUnsaved(false);
@@ -1497,6 +1863,10 @@ export default function App() {
         onToggleInspector={() => setShowInspector(!showInspector)}
         showMediaBin={showMediaBin}
         onToggleMediaBin={() => setShowMediaBin(!showMediaBin)}
+        showAudioMixer={showAudioMixer}
+        onToggleAudioMixer={() => setShowAudioMixer(!showAudioMixer)}
+        showAIAssistant={showAIAssistant}
+        onToggleAIAssistant={() => setShowAIAssistant(!showAIAssistant)}
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
         onUndo={handleUndo}
@@ -1515,37 +1885,107 @@ export default function App() {
           input.click();
         }}
         onOpenDrive={() => setIsDriveOpen(true)}
-        onOpenAIVideo={() => setIsAIVideoOpen(true)}
         currentUser={currentUser}
         onAddTitle={handleAddTitle}
         onOpenExport={() => setIsExportOpen(true)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        selectedClip={selectedClip}
+        onApplyEffect={handleApplyEffectToSelected}
       />
 
       {/* Main Workstation Layout */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div 
+        ref={workstationRef}
+        className={`flex-1 flex flex-col min-h-0 overflow-hidden relative select-none ${
+          isDraggingVerticalSplit ? 'cursor-row-resize' : isDraggingMediaBin || isDraggingInspector || isDraggingAudioMixer ? 'cursor-col-resize' : ''
+        }`}
+      >
         {/* Upper Deck: Clean 3-Zone Space (Media Bin + Large Program Monitor + Inspector) */}
-        <div className="h-[50%] flex min-h-0 border-b border-[#222226] overflow-hidden">
-          {/* Left: Collapsible Media Bin */}
+        <div 
+          ref={upperDeckRef}
+          style={{ height: `${verticalSplitPercent}%` }} 
+          className="flex min-h-0 border-b border-[#1b254a] overflow-hidden relative shrink-0"
+        >
+          {/* Left: Collapsible & Resizable Media Bin */}
           {showMediaBin && (
-            <div className="w-64 flex flex-col min-h-0 shrink-0 border-r border-[#222226]">
-              <ProjectBin
-                mediaItems={mediaItems}
-                selectedMediaId={selectedMediaId}
-                onSelectMedia={(m) => setSelectedMediaId(m.id)}
-                onDoubleClickMedia={(m) => handleInsertMedia(m)}
-                onImportFiles={handleImportFiles}
-                onOpenDrive={() => setIsDriveOpen(true)}
-                onOpenAIVideo={() => setIsAIVideoOpen(true)}
-                onOpenShortcuts={() => setIsShortcutsOpen(true)}
-                onAddGenerator={handleAddGenerator}
-                onApplyEffectToSelected={handleApplyEffectToSelected}
-              />
-            </div>
+            <>
+              <div 
+                style={{ width: `${mediaBinWidth}px` }} 
+                className="flex flex-col min-h-0 shrink-0 overflow-hidden"
+              >
+                <ProjectBin
+                  mediaItems={mediaItems}
+                  selectedMediaId={selectedMediaId}
+                  onSelectMedia={(m) => setSelectedMediaId(m.id)}
+                  onDoubleClickMedia={(m) => handleInsertMedia(m)}
+                  onImportFiles={handleImportFiles}
+                  onOpenDrive={() => setIsDriveOpen(true)}
+                  onOpenShortcuts={() => setIsShortcutsOpen(true)}
+                  onAddGenerator={handleAddGenerator}
+                  onAddAdjustmentLayer={() => handleAddAdjustmentLayer()}
+                  onAddEffectsLayer={() => handleAddEffectsLayer()}
+                  onApplyEffectToSelected={handleApplyEffectToSelected}
+                />
+              </div>
+
+              {/* Left Resizer Handle */}
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsDraggingMediaBin(true);
+                }}
+                onDoubleClick={() => {
+                  setMediaBinWidth(260);
+                  localStorage.setItem('riley_mediabin_width', '260');
+                }}
+                className="w-1.5 hover:w-2 bg-[#121935] hover:bg-sky-500 active:bg-sky-400 border-x border-[#1b254a] hover:border-sky-400 cursor-col-resize shrink-0 transition-all z-20 group relative flex items-center justify-center"
+                title="Drag to resize Project Bin (Double-click to reset)"
+              >
+                <div className="w-0.5 h-6 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
+              </div>
+            </>
+          )}
+
+          {/* Left-Center: Collapsible & Resizable Audio Mixer */}
+          {showAudioMixer && (
+            <>
+              <div 
+                style={{ width: `${audioMixerWidth}px` }} 
+                className="flex flex-col min-h-0 shrink-0 overflow-hidden"
+              >
+                <AudioMixer
+                  tracks={tracks}
+                  onToggleMute={handleToggleTrackMute}
+                  onToggleSolo={handleToggleTrackSolo}
+                  onUpdateVolume={handleUpdateTrackVolume}
+                  onUpdatePan={handleUpdateTrackPan}
+                  onUpdateEQ={handleUpdateTrackEQ}
+                  masterVolume={masterVolume}
+                  onUpdateMasterVolume={setMasterVolume}
+                  isPlaying={isPlaying}
+                />
+              </div>
+
+              {/* Audio Mixer Resizer Handle */}
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsDraggingAudioMixer(true);
+                }}
+                onDoubleClick={() => {
+                  setAudioMixerWidth(240);
+                  localStorage.setItem('riley_audiomixer_width', '240');
+                }}
+                className="w-1.5 hover:w-2 bg-[#121935] hover:bg-emerald-500 active:bg-emerald-400 border-x border-[#1b254a] hover:border-emerald-400 cursor-col-resize shrink-0 transition-all z-20 group relative flex items-center justify-center"
+                title="Drag to resize Audio Mixer (Double-click to reset)"
+              >
+                <div className="w-0.5 h-6 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
+              </div>
+            </>
           )}
 
           {/* Center: Hero Video Program Monitor taking all available space */}
-          <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#0d0d10]">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#0d0d10] overflow-hidden">
             <ProgramMonitor
               currentTime={currentTime}
               duration={duration}
@@ -1567,26 +2007,109 @@ export default function App() {
               onShuttleForward={handleShuttleForward}
               onShuttleReverse={handleShuttleReverse}
               onShuttleStop={handleShuttleStop}
+              onImportFiles={handleImportFiles}
             />
           </div>
 
-          {/* Right: Collapsible Inspector & Color Panel */}
+          {/* Right: Collapsible & Resizable Inspector & Color Panel */}
           {showInspector && (
-            <EffectControls
-              selectedClip={selectedClip}
-              onUpdateClip={handleUpdateClip}
-              onClose={() => setShowInspector(false)}
-            />
+            <>
+              {/* Right Resizer Handle */}
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsDraggingInspector(true);
+                }}
+                onDoubleClick={() => {
+                  setInspectorWidth(320);
+                  localStorage.setItem('riley_inspector_width', '320');
+                }}
+                className="w-1.5 hover:w-2 bg-[#121935] hover:bg-purple-500 active:bg-purple-400 border-x border-[#1b254a] hover:border-purple-400 cursor-col-resize shrink-0 transition-all z-20 group relative flex items-center justify-center"
+                title="Drag to resize Inspector (Double-click to reset)"
+              >
+                <div className="w-0.5 h-6 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
+              </div>
+
+              <div 
+                style={{ width: `${inspectorWidth}px` }} 
+                className="flex flex-col min-h-0 shrink-0 overflow-hidden"
+              >
+                <EffectControls
+                  selectedClip={selectedClip}
+                  onUpdateClip={handleUpdateClip}
+                  onClose={() => setShowInspector(false)}
+                />
+              </div>
+            </>
           )}
+
+          {/* AI Assistant Chatbot Sidebar */}
+          <AIAssistant
+            isOpen={showAIAssistant}
+            onClose={() => setShowAIAssistant(false)}
+            currentTime={currentTime}
+            duration={duration}
+            tracks={tracks}
+            clips={clips}
+            selectedClip={selectedClip}
+            selectedClipIds={selectedClipIds}
+            onAddAdjustmentLayer={(trackId, time) => handleAddAdjustmentLayer(trackId, time)}
+            onAddEffectsLayer={(trackId, time) => handleAddEffectsLayer(trackId, time)}
+            onAddTitle={handleAddTitle}
+            onAddGenerator={handleAddGenerator}
+            onAddTrack={handleAddTrack}
+            onSplitAtPlayhead={() => handleSplitAtPlayhead(false)}
+            onSplitClip={handleSplitClip}
+            onDeleteClip={handleDeleteClip}
+            onUpdateClip={(clipId, updates) => {
+              const target = clips.find((c) => c.id === clipId);
+              if (target) {
+                handleUpdateClip({ ...target, ...updates });
+              }
+            }}
+            onApplyEffectToSelected={handleApplyEffectToSelected}
+            onToggleTrackMute={handleToggleTrackMute}
+            onToggleTrackLock={handleToggleTrackLock}
+            onToggleTrackVisible={handleToggleTrackVisible}
+            onSeek={handleSeek}
+            onTogglePlay={handleTogglePlay}
+          />
+        </div>
+
+        {/* Horizontal Layout Resizer between Viewer & Timeline */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsDraggingVerticalSplit(true);
+          }}
+          onDoubleClick={() => {
+            setVerticalSplitPercent(50);
+            localStorage.setItem('riley_vertical_split', '50');
+          }}
+          className="h-2 hover:h-2.5 bg-[#0f1631] hover:bg-sky-600 active:bg-sky-500 border-y border-[#1b254a] hover:border-sky-400 cursor-row-resize shrink-0 transition-all z-30 group relative flex items-center justify-center select-none shadow-xs"
+          title={`Drag up/down to adjust Viewer (${Math.round(verticalSplitPercent)}%) and Timeline (${Math.round(100 - verticalSplitPercent)}%). Double-click to reset (50/50).`}
+        >
+          <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#172248] group-hover:bg-sky-950 border border-[#213063] group-hover:border-sky-400 shadow-xs transition-all">
+            <div className="w-6 h-0.5 bg-slate-400 group-hover:bg-sky-200 rounded-full" />
+            <span className="text-[9px] text-slate-400 group-hover:text-sky-200 font-mono font-medium whitespace-nowrap">
+              Viewer {Math.round(verticalSplitPercent)}% • Timeline {Math.round(100 - verticalSplitPercent)}%
+            </span>
+            <div className="w-6 h-0.5 bg-slate-400 group-hover:bg-sky-200 rounded-full" />
+          </div>
         </div>
 
         {/* Lower Deck: Simplified Tools + Timeline + Audio Meter */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Streamlined Tools Palette (Select, Cut, Ripple, Title, Zoom, Split) */}
+        <div 
+          style={{ height: `${100 - verticalSplitPercent}%` }} 
+          className="flex min-h-0 overflow-hidden"
+        >
+          {/* Streamlined Tools Palette (Select, Cut, Ripple, Title, Zoom, Split, Adjustment, Effects) */}
           <TimelineToolbar
             activeTool={activeTool}
             onSelectTool={setActiveTool}
             onSplitAtPlayhead={() => handleSplitAtPlayhead(false)}
+            onAddAdjustmentLayer={() => handleAddAdjustmentLayer()}
+            onAddEffectsLayer={() => handleAddEffectsLayer()}
           />
 
           {/* Premiere Multi-Track Timeline */}
@@ -1614,6 +2137,9 @@ export default function App() {
             onDeleteMultipleClips={handleDeleteMultipleClips}
             onSplitClip={handleSplitClip}
             onAddTrack={handleAddTrack}
+            onChangeTrackLayerType={handleChangeTrackLayerType}
+            onAddAdjustmentLayer={handleAddAdjustmentLayer}
+            onAddEffectsLayer={handleAddEffectsLayer}
             onToggleTrackVisible={handleToggleTrackVisible}
             onToggleTrackLock={handleToggleTrackLock}
             onToggleTrackMute={handleToggleTrackMute}
@@ -1668,13 +2194,6 @@ export default function App() {
         currentTime={currentTime}
         inPoint={inPoint}
         outPoint={outPoint}
-      />
-
-      {/* AI Video Creation Studio Modal */}
-      <AIVideoGeneratorModal
-        isOpen={isAIVideoOpen}
-        onClose={() => setIsAIVideoOpen(false)}
-        onAddMediaToProject={(media, addToTimeline) => handleImportDriveMedia(media, addToTimeline)}
       />
 
       {/* Timestamped Marker System Modal */}

@@ -48,7 +48,7 @@ export const AudioMeter: React.FC<AudioMeterProps> = ({
   }, [isPlaying]);
 
   const dbToPercent = (db: number) => {
-    if (db <= -60) return 0;
+    if (typeof db !== 'number' || isNaN(db) || db <= -60) return 0;
     if (db >= 3) return 100;
     return Math.max(0, Math.min(100, ((db + 60) / 63) * 100));
   };

@@ -133,8 +133,8 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
               <Save className="w-4 h-4" />
             </div>
             <div>
-              <div className="font-semibold text-sm text-white">Project File Manager</div>
-              <div className="text-[11px] text-neutral-400">Save, export, and load sequences (.cineflow)</div>
+              <div className="font-semibold text-sm text-white">Riley Project Manager</div>
+              <div className="text-[11px] text-neutral-400">Save, export, and load sequences (.riley / .cineflow)</div>
             </div>
           </div>
 
@@ -268,7 +268,7 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
                         <Download className="w-4 h-4" />
                       </div>
                       <span className="text-[10px] bg-emerald-950/70 text-emerald-400 font-mono px-2 py-0.5 rounded border border-emerald-500/30">
-                        .cineflow
+                        .riley
                       </span>
                     </div>
                     <div className="font-semibold text-white text-sm">Download Project File</div>
@@ -277,7 +277,7 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
                     </p>
                   </div>
                   <button className="mt-3 w-full py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-colors cursor-pointer">
-                    Download .cineflow
+                    Download .riley
                   </button>
                 </div>
               </div>
@@ -320,7 +320,7 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
                   <Upload className="w-5 h-5" />
                 </div>
                 <div className="font-semibold text-white text-xs mb-1">
-                  Upload Project File (.cineflow or .json)
+                  Upload Project File (.riley, .cineflow or .json)
                 </div>
                 <div className="text-[11px] text-neutral-400">
                   Drag and drop file here, or click to browse computer
@@ -328,7 +328,7 @@ export const ProjectFileModal: React.FC<ProjectFileModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".cineflow,.json"
+                  accept=".riley,.cineflow,.json"
                   className="hidden"
                   onChange={(e) => {
                     if (e.target.files && e.target.files.length > 0) {

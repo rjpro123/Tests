@@ -28,9 +28,10 @@ interface ProjectBinProps {
   onDoubleClickMedia: (item: MediaItem) => void;
   onImportFiles: (files: FileList) => void;
   onOpenDrive?: () => void;
-  onOpenAIVideo?: () => void;
   onOpenShortcuts?: () => void;
   onAddGenerator: (type: 'smpte-bars' | 'countdown') => void;
+  onAddAdjustmentLayer?: () => void;
+  onAddEffectsLayer?: () => void;
   onApplyEffectToSelected?: (effectName: string) => void;
 }
 
@@ -41,9 +42,10 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
   onDoubleClickMedia,
   onImportFiles,
   onOpenDrive,
-  onOpenAIVideo,
   onOpenShortcuts,
   onAddGenerator,
+  onAddAdjustmentLayer,
+  onAddEffectsLayer,
   onApplyEffectToSelected,
 }) => {
   const [activeTab, setActiveTab] = useState<'bin' | 'effects' | 'generators' | 'help'>('bin');
@@ -62,14 +64,20 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
   };
 
   const effectsList = [
-    { id: 'gaussian-blur', name: 'Gaussian Blur', category: 'Blur', desc: 'Smooth frame details' },
-    { id: 'glitch', name: 'Digital Glitch FX', category: 'Stylize', desc: 'RGB chromatic shift' },
-    { id: 'mirror', name: 'Mirror Invert', category: 'Distort', desc: 'Horizontal mirror' },
-    { id: 'black-and-white', name: 'Monochrome Noir', category: 'Color', desc: 'B&W monochrome' },
-    { id: 'edge-glow', name: 'Anamorphic Glow', category: 'Stylize', desc: 'Cyan light glow' },
-    { id: 'cross-dissolve', name: 'Cross Dissolve', category: 'Transition', desc: 'Alpha fade' },
-    { id: 'dip-to-black', name: 'Dip to Black', category: 'Transition', desc: 'Fade down' },
-    { id: 'wipe-left', name: 'Wipe Transition', category: 'Transition', desc: 'Horizontal wipe' },
+    { id: 'ae-optical-flares', name: 'Optical Flares Pro', category: 'AE Plugin', desc: 'Anamorphic lens flares, streaks & halos' },
+    { id: 'ae-trapcode-particles', name: 'Trapcode Particular', category: 'AE Plugin', desc: 'Embers, sparks, stardust & cosmic snow' },
+    { id: 'ae-deep-glow', name: 'Deep Glow Studio', category: 'AE Plugin', desc: 'Multi-tier anamorphic aura bloom' },
+    { id: 'ae-chromatic-aberration', name: 'Chromatic Aberration', category: 'AE Plugin', desc: 'RGB prism split & lens dispersion' },
+    { id: 'ae-vhs-glitch', name: 'VHS Tape & CRT Damage', category: 'AE Plugin', desc: 'Scanlines, static noise & VCR timestamp' },
+    { id: 'ae-wave-displacement', name: 'Turbulent Wave Warp', category: 'AE Plugin', desc: 'Liquid heat shimmer & refraction' },
+    { id: 'ae-light-rays', name: 'CC Light Rays', category: 'AE Plugin', desc: 'Volumetric god rays from light origin' },
+    { id: 'ae-halftone', name: 'Halftone & Pixel Matrix', category: 'AE Plugin', desc: 'Retro halftone print dots & pixel grid' },
+    { id: 'gaussian-blur', name: 'Gaussian Blur', category: 'Blur', desc: 'Smooth frame details & defocus' },
+    { id: 'glitch', name: 'Digital Glitch FX', category: 'Stylize', desc: 'Cyberpunk digital corruption' },
+    { id: 'black-and-white', name: 'Monochrome Noir', category: 'Color', desc: 'Cinematic B&W contrast' },
+    { id: 'cross-dissolve', name: 'Cross Dissolve', category: 'Transition', desc: 'Smooth alpha crossfade' },
+    { id: 'dip-to-black', name: 'Dip to Black', category: 'Transition', desc: 'Fade down to black' },
+    { id: 'wipe-left', name: 'Wipe Transition', category: 'Transition', desc: 'Directional horizontal wipe' },
   ];
 
   const quickShortcuts = [
@@ -116,21 +124,21 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
             onClick={() => setActiveTab('bin')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
               activeTab === 'bin'
-                ? 'bg-neutral-800 text-sky-400 shadow-xs'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-[#1b254a] text-sky-400 shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Folder className="w-3.5 h-3.5" />
             <span>Media</span>
-            <span className="text-[10px] text-neutral-500 font-mono">({mediaItems.length})</span>
+            <span className="text-[10px] text-slate-400 font-mono">({mediaItems.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('effects')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
               activeTab === 'effects'
-                ? 'bg-neutral-800 text-purple-400 shadow-xs'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-[#1b254a] text-purple-400 shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -141,8 +149,8 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
             onClick={() => setActiveTab('generators')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
               activeTab === 'generators'
-                ? 'bg-neutral-800 text-amber-400 shadow-xs'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-[#1b254a] text-amber-300 shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Wand2 className="w-3.5 h-3.5" />
@@ -151,10 +159,10 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
 
           <button
             onClick={() => setActiveTab('help')}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
               activeTab === 'help'
-                ? 'bg-neutral-800 text-emerald-400 shadow-xs'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-[#1b254a] text-emerald-400 shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Keyboard className="w-3.5 h-3.5" />
@@ -366,11 +374,69 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
           </div>
         )}
 
-        {/* Generators Tab */}
+        {/* Generators & Layers Tab */}
         {activeTab === 'generators' && (
-          <div className="space-y-2">
-            <div className="text-[11px] text-neutral-400 px-1">
-              Add studio test leaders and graphics:
+          <div className="space-y-1.5">
+            <div className="text-[10px] text-neutral-400 px-1 font-semibold text-slate-300 uppercase tracking-wider">
+              Layers & Generators
+            </div>
+
+            {/* Non-Destructive Adjustment Layer - Sleek List Item */}
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('application/json', JSON.stringify({ type: 'adjustment-layer' }));
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+              className="p-1.5 px-2 rounded-md bg-[#141418] hover:bg-[#1a1626] border border-[#231b34] hover:border-purple-500/50 flex items-center justify-between cursor-grab text-xs transition-colors group"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-5 h-5 rounded bg-purple-950/80 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
+                  <Wand2 className="w-3 h-3" />
+                </div>
+                <div className="truncate">
+                  <div className="text-purple-200 font-medium text-xs flex items-center gap-1.5 truncate">
+                    <span>Adjustment Layer</span>
+                    <span className="text-[9px] bg-purple-900/60 px-1 py-0.2 rounded font-mono text-purple-300">ADJ</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={onAddAdjustmentLayer}
+                title="Add Adjustment Layer to top video track"
+                className="px-2 py-0.5 bg-purple-950/70 hover:bg-purple-900 border border-purple-500/40 text-purple-300 hover:text-white font-medium text-[11px] rounded cursor-pointer transition-colors shrink-0 shadow-xs"
+              >
+                + Add
+              </button>
+            </div>
+
+            {/* Procedural Effects Layer - Sleek List Item */}
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('application/json', JSON.stringify({ type: 'effects-layer' }));
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+              className="p-1.5 px-2 rounded-md bg-[#141418] hover:bg-[#201524] border border-[#2d1b32] hover:border-pink-500/50 flex items-center justify-between cursor-grab text-xs transition-colors group"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-5 h-5 rounded bg-pink-950/80 border border-pink-500/40 flex items-center justify-center text-pink-300 shrink-0">
+                  <Sparkles className="w-3 h-3" />
+                </div>
+                <div className="truncate">
+                  <div className="text-pink-200 font-medium text-xs flex items-center gap-1.5 truncate">
+                    <span>Effects Layer</span>
+                    <span className="text-[9px] bg-pink-900/60 px-1 py-0.2 rounded font-mono text-pink-300">FX</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={onAddEffectsLayer}
+                title="Add Effects Layer to top video track"
+                className="px-2 py-0.5 bg-pink-950/70 hover:bg-pink-900 border border-pink-500/40 text-pink-300 hover:text-white font-medium text-[11px] rounded cursor-pointer transition-colors shrink-0 shadow-xs"
+              >
+                + Add
+              </button>
             </div>
 
             {/* SMPTE Bars */}
