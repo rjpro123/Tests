@@ -81,6 +81,8 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     { key: 'D', desc: 'Select clip under playhead on active track', category: 'playback' },
 
     // Timeline & Editing
+    { key: 'S', desc: 'Split Selected Clip at Active Playhead position', category: 'timeline', badge: 'Essential' },
+    { key: 'C', desc: 'Razor Cut Tool / Slice Clip at cursor', category: 'timeline', badge: 'Essential' },
     { key: 'Ctrl + S', macKey: '⌘ + S', desc: 'Save Project (Instant browser save + snapshot)', category: 'timeline', badge: 'Essential' },
     { key: 'Ctrl + Shift + S', macKey: '⌘ + Shift + S', desc: 'Save Project As / Download .cineflow file', category: 'timeline' },
     { key: 'Ctrl + O', macKey: '⌘ + O', desc: 'Open Project File (.cineflow / .json) / Recent', category: 'timeline' },

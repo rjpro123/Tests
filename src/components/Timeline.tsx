@@ -139,14 +139,56 @@ export const Timeline: React.FC<TimelineProps> = ({
   }, [selectedClipIds, selectedClipId]);
 
   // Dragging & Layer Menu states
+  const [trackHeightMode, setTrackHeightMode] = useState<'compact' | 'medium' | 'expanded'>('medium');
   const [showDbFormat, setShowDbFormat] = useState(false);
   const [isAddTrackMenuOpen, setIsAddTrackMenuOpen] = useState(false);
   const [activeTrackLayerMenuId, setActiveTrackLayerMenuId] = useState<string | null>(null);
   const [isScrubbingRuler, setIsScrubbingRuler] = useState(false);
+  const [isScrubbingMinimap, setIsScrubbingMinimap] = useState(false);
+  const minimapRef = useRef<HTMLDivElement | null>(null);
   const [trimmingClip, setTrimmingClip] = useState<{ id: string; side: 'left' | 'right'; startX: number; originalStart: number; originalDur: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ trackId: string; time: number } | null>(null);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const timelineDragCounterRef = useRef(0);
+
+  const getEffectiveTrackHeight = useCallback((track: Track) => {
+    if (trackHeightMode === 'compact') return 38;
+    if (trackHeightMode === 'expanded') return 80;
+    return 54;
+  }, [trackHeightMode]);
+
+  const handleMinimapSeek = useCallback((clientX: number) => {
+    if (!minimapRef.current || !scrollRef.current) return;
+    const rect = minimapRef.current.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const targetTime = ratio * duration;
+    onSeek(targetTime);
+
+    const targetScrollX = targetTime * zoom - scrollRef.current.clientWidth / 2;
+    scrollRef.current.scrollLeft = Math.max(0, targetScrollX);
+  }, [duration, zoom, onSeek]);
+
+  const handleMinimapMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsScrubbingMinimap(true);
+    handleMinimapSeek(e.clientX);
+  };
+
+  useEffect(() => {
+    if (!isScrubbingMinimap) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      handleMinimapSeek(e.clientX);
+    };
+    const handleMouseUp = () => {
+      setIsScrubbingMinimap(false);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isScrubbingMinimap, handleMinimapSeek]);
 
   // Visual Snapping Guide Overlay State
   const [snapGuide, setSnapGuide] = useState<SnapGuideInfo | null>(null);
@@ -752,24 +794,74 @@ export const Timeline: React.FC<TimelineProps> = ({
           )}
         </div>
 
-        {/* Zoom & Track Controls */}
+        {/* Zoom, Track Height & Tool Controls */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-[#1b1b22] px-1.5 py-0.5 rounded-md border border-[#272732]">
+          {/* Track Height Toggle */}
+          <div className="flex items-center bg-[#131b36] p-0.5 rounded-md border border-[#1b254a]">
+            <button
+              onClick={() => setTrackHeightMode('compact')}
+              title="Compact Track Height (38px)"
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer ${
+                trackHeightMode === 'compact'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Compact
+            </button>
+            <button
+              onClick={() => setTrackHeightMode('medium')}
+              title="Medium Track Height (54px)"
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer ${
+                trackHeightMode === 'medium'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Medium
+            </button>
+            <button
+              onClick={() => setTrackHeightMode('expanded')}
+              title="Expanded Track Height (80px)"
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer ${
+                trackHeightMode === 'expanded'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Expanded
+            </button>
+          </div>
+
+          {/* Smooth Zoom Slider */}
+          <div className="flex items-center gap-1.5 bg-[#131b36] px-2 py-0.5 rounded-md border border-[#1b254a]">
             <button
               onClick={() => onSetZoom(Math.max(20, zoom - 15))}
               title="Zoom Out (-)"
-              className="p-1 hover:text-white cursor-pointer transition-colors"
+              className="p-0.5 text-slate-400 hover:text-white cursor-pointer transition-colors"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-neutral-400 text-[10px] font-mono tabular-nums px-1">{zoom}px/s</span>
+            <input
+              type="range"
+              min="20"
+              max="250"
+              step="5"
+              value={zoom}
+              onChange={(e) => onSetZoom(Number(e.target.value))}
+              className="w-16 sm:w-20 accent-sky-400 bg-[#1b254a] rounded h-1 cursor-pointer"
+              title={`Zoom: ${zoom}px/sec`}
+            />
             <button
               onClick={() => onSetZoom(Math.min(250, zoom + 15))}
               title="Zoom In (+)"
-              className="p-1 hover:text-white cursor-pointer transition-colors"
+              className="p-0.5 text-slate-400 hover:text-white cursor-pointer transition-colors"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
+            <span className="text-sky-300 text-[10px] font-mono tabular-nums min-w-[34px] text-right">
+              {zoom}px/s
+            </span>
           </div>
 
           <button
@@ -846,6 +938,12 @@ export const Timeline: React.FC<TimelineProps> = ({
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Track Headers Column */}
         <div className="w-56 bg-[#0d1226] border-r border-[#1b254a] flex flex-col shrink-0 select-none z-10 text-xs">
+          {/* Top Minimap align header */}
+          <div className="h-5 bg-[#090e21] border-b border-[#1b254a] px-2.5 flex items-center justify-between text-[9px] text-sky-400 font-bold tracking-wider shrink-0">
+            <span>SEQUENCE MAP</span>
+            <span className="text-[8px] text-slate-500 font-mono">{formatTimecode(duration, 30)}</span>
+          </div>
+
           {/* Top ruler placeholder align */}
           <div className="h-6 bg-[#131b36] border-b border-[#1b254a] px-2.5 flex items-center justify-between text-[11px] text-neutral-500 font-medium relative">
             <span className="text-[10px] font-semibold text-neutral-300">LAYER TRACKS</span>
@@ -954,7 +1052,7 @@ export const Timeline: React.FC<TimelineProps> = ({
               return (
                 <div
                   key={track.id}
-                  style={{ height: `${track.height}px` }}
+                  style={{ height: `${getEffectiveTrackHeight(track)}px` }}
                   className={`flex flex-col justify-center px-2.5 py-1 border-b border-[#1c1c24] transition-colors relative group/track select-none ${
                     layerType === 'adjustment'
                       ? 'bg-[#150f24] hover:bg-[#1c1430]'

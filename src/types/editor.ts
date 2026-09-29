@@ -19,6 +19,13 @@ export interface MediaItem {
 
 export type BlendMode = 'normal' | 'screen' | 'multiply' | 'overlay' | 'lighten' | 'darken';
 
+export interface CropSettings {
+  top: number; // percentage 0 to 100
+  bottom: number; // percentage 0 to 100
+  left: number; // percentage 0 to 100
+  right: number; // percentage 0 to 100
+}
+
 export interface TransformSettings {
   positionX: number; // offset px from center
   positionY: number;
@@ -26,6 +33,7 @@ export interface TransformSettings {
   rotation: number; // degrees
   opacity: number; // 0 to 1
   blendMode: BlendMode;
+  crop?: CropSettings;
 }
 
 export interface LumetriSettings {

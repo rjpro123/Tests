@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   Play, 
   Pause, 
@@ -8,11 +8,19 @@ import {
   Minimize2,
   Grid, 
   Repeat, 
-  ChevronRight,
-  ChevronLeft,
-  Film,
-  Bookmark,
-  Upload
+  ChevronRight, 
+  ChevronLeft, 
+  Film, 
+  Bookmark, 
+  Upload, 
+  Move, 
+  RotateCw, 
+  Crop, 
+  Sliders, 
+  Sparkles, 
+  RefreshCw, 
+  X,
+  Layers
 } from 'lucide-react';
 import { Clip, MediaItem, Track } from '../types/editor';
 import { formatTimecode } from '../utils/timecode';
@@ -30,6 +38,8 @@ interface ProgramMonitorProps {
   outPoint: number | null;
   loop: boolean;
   shuttleSpeed?: number;
+  selectedClip?: Clip | null;
+  onUpdateClip?: (clip: Clip) => void;
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onStepFrame: (direction: -1 | 1) => void;
@@ -54,6 +64,8 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
   outPoint,
   loop,
   shuttleSpeed = 1,
+  selectedClip,
+  onUpdateClip,
   onTogglePlay,
   onSeek,
   onStepFrame,
@@ -67,11 +79,46 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const [showSafeMargins, setShowSafeMargins] = useState(false);
+  const [showTransformOverlay, setShowTransformOverlay] = useState(true);
   const [zoomMode, setZoomMode] = useState<'fit' | '100%' | '50%'>('fit');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const monitorDragCounterRef = useRef(0);
+
+  // Interaction State for Canvas Handles Dragging
+  const [activeHandle, setActiveHandle] = useState<{
+    type: 'move' | 'scale' | 'rotate' | 'crop-top' | 'crop-bottom' | 'crop-left' | 'crop-right';
+    corner?: 'tl' | 'tr' | 'bl' | 'br';
+    startX: number;
+    startY: number;
+    origPosX: number;
+    origPosY: number;
+    origScale: number;
+    origRotation: number;
+    origCrop: { top: number; bottom: number; left: number; right: number };
+    centerX: number;
+    centerY: number;
+  } | null>(null);
+
+  // Measure canvas display bounds
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 960, height: 540 });
+
+  const updateCanvasDimensions = useCallback(() => {
+    if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setCanvasDimensions({ width: rect.width, height: rect.height });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    updateCanvasDimensions();
+    window.addEventListener('resize', updateCanvasDimensions);
+    return () => window.removeEventListener('resize', updateCanvasDimensions);
+  }, [updateCanvasDimensions, zoomMode, isFullscreen]);
 
   // Render canvas whenever currentTime, tracks, clips, or media updates
   useEffect(() => {
@@ -86,16 +133,18 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
       renderWidth: 1920,
       renderHeight: 1080,
     });
-  }, [currentTime, tracks, clips, mediaMap, showSafeMargins]);
+    updateCanvasDimensions();
+  }, [currentTime, tracks, clips, mediaMap, showSafeMargins, updateCanvasDimensions]);
 
   // Sync fullscreen state if user exits via Esc key
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
+      setTimeout(updateCanvasDimensions, 50);
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+  }, [updateCanvasDimensions]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -106,6 +155,132 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
       document.exitFullscreen().catch(() => {});
       setIsFullscreen(false);
     }
+  };
+
+  // Determine if active selected clip is visual & active
+  const isVisualClip = selectedClip && selectedClip.type !== 'audio';
+  const isClipInView = selectedClip && (currentTime >= selectedClip.startTime - 0.01 && currentTime <= selectedClip.startTime + selectedClip.duration + 0.01);
+
+  // Global Mouse Move & Up Listeners for Canvas Transform Handles
+  useEffect(() => {
+    if (!activeHandle || !selectedClip || !onUpdateClip || !canvasRef.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const displayW = canvasDimensions.width || 960;
+      const displayH = canvasDimensions.height || 540;
+      const scaleX = 1920 / displayW;
+      const scaleY = 1080 / displayH;
+
+      if (activeHandle.type === 'move') {
+        const dx = (e.clientX - activeHandle.startX) * scaleX;
+        const dy = (e.clientY - activeHandle.startY) * scaleY;
+        const newPosX = Math.round(activeHandle.origPosX + dx);
+        const newPosY = Math.round(activeHandle.origPosY + dy);
+
+        onUpdateClip({
+          ...selectedClip,
+          transform: {
+            ...selectedClip.transform,
+            positionX: newPosX,
+            positionY: newPosY,
+          },
+        });
+      } else if (activeHandle.type === 'scale') {
+        const currentDist = Math.hypot(e.clientX - activeHandle.centerX, e.clientY - activeHandle.centerY);
+        const startDist = Math.hypot(activeHandle.startX - activeHandle.centerX, activeHandle.startY - activeHandle.centerY);
+        if (startDist > 0) {
+          const factor = currentDist / startDist;
+          const newScale = Math.max(0.1, Math.min(3.0, Math.round(activeHandle.origScale * factor * 100) / 100));
+          onUpdateClip({
+            ...selectedClip,
+            transform: {
+              ...selectedClip.transform,
+              scale: newScale,
+            },
+          });
+        }
+      } else if (activeHandle.type === 'rotate') {
+        const angleRad = Math.atan2(e.clientY - activeHandle.centerY, e.clientX - activeHandle.centerX);
+        let angleDeg = Math.round(((angleRad * 180) / Math.PI) + 90);
+        if (angleDeg > 180) angleDeg -= 360;
+        if (angleDeg < -180) angleDeg += 360;
+        
+        // Snap to 15 degrees if Shift is held
+        if (e.shiftKey) {
+          angleDeg = Math.round(angleDeg / 15) * 15;
+        }
+
+        onUpdateClip({
+          ...selectedClip,
+          transform: {
+            ...selectedClip.transform,
+            rotation: angleDeg,
+          },
+        });
+      } else if (activeHandle.type.startsWith('crop-')) {
+        const crop = { ...activeHandle.origCrop };
+        const dxPercent = ((e.clientX - activeHandle.startX) / displayW) * 100;
+        const dyPercent = ((e.clientY - activeHandle.startY) / displayH) * 100;
+
+        if (activeHandle.type === 'crop-left') {
+          crop.left = Math.max(0, Math.min(48, Math.round(activeHandle.origCrop.left + dxPercent)));
+        } else if (activeHandle.type === 'crop-right') {
+          crop.right = Math.max(0, Math.min(48, Math.round(activeHandle.origCrop.right - dxPercent)));
+        } else if (activeHandle.type === 'crop-top') {
+          crop.top = Math.max(0, Math.min(48, Math.round(activeHandle.origCrop.top + dyPercent)));
+        } else if (activeHandle.type === 'crop-bottom') {
+          crop.bottom = Math.max(0, Math.min(48, Math.round(activeHandle.origCrop.bottom - dyPercent)));
+        }
+
+        onUpdateClip({
+          ...selectedClip,
+          transform: {
+            ...selectedClip.transform,
+            crop,
+          },
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setActiveHandle(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [activeHandle, selectedClip, onUpdateClip, canvasDimensions]);
+
+  // Handle mousedown on interactive components
+  const startDragHandle = (
+    e: React.MouseEvent,
+    type: 'move' | 'scale' | 'rotate' | 'crop-top' | 'crop-bottom' | 'crop-left' | 'crop-right',
+    corner?: 'tl' | 'tr' | 'bl' | 'br'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedClip || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2 + (selectedClip.transform.positionX * (rect.width / 1920));
+    const centerY = rect.top + rect.height / 2 + (selectedClip.transform.positionY * (rect.height / 1080));
+
+    setActiveHandle({
+      type,
+      corner,
+      startX: e.clientX,
+      startY: e.clientY,
+      origPosX: selectedClip.transform.positionX || 0,
+      origPosY: selectedClip.transform.positionY || 0,
+      origScale: selectedClip.transform.scale || 1,
+      origRotation: selectedClip.transform.rotation || 0,
+      origCrop: selectedClip.transform.crop || { top: 0, bottom: 0, left: 0, right: 0 },
+      centerX,
+      centerY,
+    });
   };
 
   return (
@@ -146,6 +321,19 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
             }`}
           >
             <Grid className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Interactive Transform Handles Overlay Toggle */}
+          <button
+            onClick={() => setShowTransformOverlay(!showTransformOverlay)}
+            title={showTransformOverlay ? 'Transform Handles ON (Move, Scale, Rotate, Crop)' : 'Transform Handles OFF'}
+            className={`p-1.5 rounded-md border transition-all cursor-pointer ${
+              showTransformOverlay && isVisualClip
+                ? 'bg-sky-950/80 border-sky-400 text-sky-300 shadow-sm'
+                : 'bg-[#1b1b22] border-[#272732] text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Move className="w-3.5 h-3.5" />
           </button>
 
           {/* Fullscreen Button */}
@@ -228,6 +416,140 @@ export const ProgramMonitor: React.FC<ProgramMonitorProps> = ({
                 : 'w-[480px] h-[270px]'
             }`}
           />
+
+          {/* Interactive Canvas Transform Handles & Overlay Controls */}
+          {showTransformOverlay && isVisualClip && selectedClip && (
+            <div
+              className="absolute inset-0 pointer-events-none z-30 flex items-center justify-center overflow-visible"
+              style={{
+                width: `${canvasDimensions.width}px`,
+                height: `${canvasDimensions.height}px`,
+                margin: 'auto',
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+              }}
+            >
+              {/* Scaled & Rotated Bounding Box Container */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  width: `${canvasDimensions.width}px`,
+                  height: `${canvasDimensions.height}px`,
+                  transform: `translate(-50%, -50%) translate(${
+                    (selectedClip.transform.positionX || 0) * (canvasDimensions.width / 1920)
+                  }px, ${
+                    (selectedClip.transform.positionY || 0) * (canvasDimensions.height / 1080)
+                  }px) rotate(${selectedClip.transform.rotation || 0}deg) scale(${
+                    selectedClip.transform.scale || 1
+                  })`,
+                  transformOrigin: 'center center',
+                  pointerEvents: 'auto',
+                }}
+                className="group select-none"
+              >
+                {/* Bounding Outline & Move Area */}
+                <div 
+                  onMouseDown={(e) => startDragHandle(e, 'move')}
+                  className="w-full h-full border-2 border-sky-400/90 shadow-[0_0_14px_rgba(56,189,248,0.5)] cursor-move relative flex items-center justify-center hover:border-sky-300 transition-colors"
+                >
+                  {/* Center Anchor Crosshair */}
+                  <div className="w-6 h-6 rounded-full bg-slate-950/80 border border-sky-400 flex items-center justify-center text-sky-300 pointer-events-none shadow-sm">
+                    <Move className="w-3.5 h-3.5" />
+                  </div>
+
+                  {/* Crop Inset Visual Guide (if crop active) */}
+                  {selectedClip.transform.crop && (
+                    <div
+                      style={{
+                        top: `${selectedClip.transform.crop.top || 0}%`,
+                        bottom: `${selectedClip.transform.crop.bottom || 0}%`,
+                        left: `${selectedClip.transform.crop.left || 0}%`,
+                        right: `${selectedClip.transform.crop.right || 0}%`,
+                      }}
+                      className="absolute border border-dashed border-amber-400 pointer-events-none bg-amber-400/5"
+                    />
+                  )}
+
+                  {/* Top Rotation Stem & Circular Handle */}
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+                    <div
+                      onMouseDown={(e) => startDragHandle(e, 'rotate')}
+                      title="Drag to Rotate (Hold Shift for 15° snap)"
+                      className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-md cursor-grab active:cursor-grabbing hover:scale-125 transition-transform flex items-center justify-center"
+                    >
+                      <RotateCw className="w-2.5 h-2.5 text-slate-900 stroke-[3]" />
+                    </div>
+                    <div className="w-[1.5px] h-3 bg-sky-400 pointer-events-none" />
+                  </div>
+
+                  {/* 4 Corner Resize Handles */}
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'scale', 'tl')}
+                    title="Scale Corner (Top-Left)"
+                    className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-sky-500 rounded-xs shadow-md cursor-nwse-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'scale', 'tr')}
+                    title="Scale Corner (Top-Right)"
+                    className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-sky-500 rounded-xs shadow-md cursor-nesw-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'scale', 'bl')}
+                    title="Scale Corner (Bottom-Left)"
+                    className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-sky-500 rounded-xs shadow-md cursor-nesw-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'scale', 'br')}
+                    title="Scale Corner (Bottom-Right)"
+                    className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-sky-500 rounded-xs shadow-md cursor-nwse-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+
+                  {/* 4 Edge Crop Handles */}
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'crop-top')}
+                    title="Crop Top Edge"
+                    className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-5 h-2 bg-sky-400 border border-white rounded-full shadow-sm cursor-ns-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'crop-bottom')}
+                    title="Crop Bottom Edge"
+                    className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-2 bg-sky-400 border border-white rounded-full shadow-sm cursor-ns-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'crop-left')}
+                    title="Crop Left Edge"
+                    className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-2 h-5 bg-sky-400 border border-white rounded-full shadow-sm cursor-ew-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+                  <div
+                    onMouseDown={(e) => startDragHandle(e, 'crop-right')}
+                    title="Crop Right Edge"
+                    className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-2 h-5 bg-sky-400 border border-white rounded-full shadow-sm cursor-ew-resize hover:scale-125 transition-transform pointer-events-auto"
+                  />
+
+                  {/* Floating Transform HUD Tooltip */}
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 pointer-events-none bg-slate-950/90 backdrop-blur-md border border-sky-500/40 px-2 py-0.5 rounded text-[10px] font-mono text-sky-200 shadow-xl whitespace-nowrap flex items-center gap-2">
+                    <span className="text-white font-bold">{selectedClip.name}</span>
+                    <span className="text-slate-500">•</span>
+                    <span>X: {selectedClip.transform.positionX || 0}px Y: {selectedClip.transform.positionY || 0}px</span>
+                    <span className="text-slate-500">•</span>
+                    <span>Scale: {Math.round((selectedClip.transform.scale || 1) * 100)}%</span>
+                    <span className="text-slate-500">•</span>
+                    <span>Rot: {selectedClip.transform.rotation || 0}°</span>
+                    {selectedClip.transform.crop && (selectedClip.transform.crop.left > 0 || selectedClip.transform.crop.top > 0) && (
+                      <>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-amber-300">Crop: {selectedClip.transform.crop.left}%L {selectedClip.transform.crop.top}%T</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Active Shuttle Speed HUD Overlay */}
           {isPlaying && shuttleSpeed !== 1 && (

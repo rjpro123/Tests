@@ -227,6 +227,20 @@ export function renderTimelineFrame({
     ctx.rotate((activeClip.transform.rotation * Math.PI) / 180);
     ctx.scale(activeClip.transform.scale, activeClip.transform.scale);
 
+    // Apply Crop Clipping if set
+    if (activeClip.transform.crop) {
+      const { top = 0, bottom = 0, left = 0, right = 0 } = activeClip.transform.crop;
+      if (top > 0 || bottom > 0 || left > 0 || right > 0) {
+        const cropX = -renderWidth / 2 + (renderWidth * Math.max(0, Math.min(100, left))) / 100;
+        const cropY = -renderHeight / 2 + (renderHeight * Math.max(0, Math.min(100, top))) / 100;
+        const cropW = Math.max(0, renderWidth * (1 - (Math.max(0, left) + Math.max(0, right)) / 100));
+        const cropH = Math.max(0, renderHeight * (1 - (Math.max(0, top) + Math.max(0, bottom)) / 100));
+        ctx.beginPath();
+        ctx.rect(cropX, cropY, cropW, cropH);
+        ctx.clip();
+      }
+    }
+
     ctx.filter = filterString;
 
     // Draw Content based on clip type

@@ -1579,6 +1579,10 @@ export default function App() {
         setActiveTool('ripple');
       } else if (e.code === 'KeyC' && !e.ctrlKey && !e.metaKey) {
         setActiveTool('razor');
+        if (selectedClipId) {
+          e.preventDefault();
+          handleSplitClip(selectedClipId, currentTime);
+        }
       } else if (e.code === 'KeyZ' && !e.ctrlKey && !e.metaKey) {
         setActiveTool('zoom');
       } else if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) {
@@ -1717,8 +1721,19 @@ export default function App() {
         setZoom((z) => Math.max(20, z - 15));
       }
 
-      // S: Toggle Snapping
-      else if (e.code === 'KeyS' && !e.ctrlKey && !e.metaKey) {
+      // S: Split selected clip at active playhead position (or clip at playhead)
+      else if (e.code === 'KeyS' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        if (selectedClipId) {
+          handleSplitClip(selectedClipId, currentTime);
+        } else {
+          handleSplitAtPlayhead(false);
+        }
+      }
+
+      // Shift + S: Toggle Snapping
+      else if (e.code === 'KeyS' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
         setSnapping((prev) => !prev);
       }
 
@@ -2008,6 +2023,8 @@ export default function App() {
               onShuttleReverse={handleShuttleReverse}
               onShuttleStop={handleShuttleStop}
               onImportFiles={handleImportFiles}
+              selectedClip={selectedClip}
+              onUpdateClip={handleUpdateClip}
             />
           </div>
 

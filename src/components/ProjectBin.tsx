@@ -50,11 +50,24 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'bin' | 'effects' | 'generators' | 'help'>('bin');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'video' | 'audio' | 'image' | 'generator'>('all');
+  const [hoverScrub, setHoverScrub] = useState<{ id: string; percent: number; time: number } | null>(null);
+  const hoverVideoRefs = React.useRef<{ [key: string]: HTMLVideoElement | null }>({});
 
-  const filteredMedia = mediaItems.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMedia = mediaItems.filter((item) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = mediaTypeFilter === 'all' || item.type === mediaTypeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const mediaCounts = {
+    all: mediaItems.length,
+    video: mediaItems.filter((m) => m.type === 'video').length,
+    audio: mediaItems.filter((m) => m.type === 'audio').length,
+    image: mediaItems.filter((m) => m.type === 'image').length,
+    generator: mediaItems.filter((m) => m.type === 'generator').length,
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -243,6 +256,37 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
         )}
       </div>
 
+      {/* Media Type Quick Filter Tags */}
+      {activeTab === 'bin' && (
+        <div className="bg-[#0f1426] border-b border-[#1b254a] px-2 py-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'all', label: 'All', count: mediaCounts.all },
+            { id: 'video', label: 'Video', count: mediaCounts.video },
+            { id: 'audio', label: 'Audio', count: mediaCounts.audio },
+            { id: 'image', label: 'Images', count: mediaCounts.image },
+            { id: 'generator', label: 'Generators', count: mediaCounts.generator },
+          ].map((tag) => {
+            const isActive = mediaTypeFilter === tag.id;
+            return (
+              <button
+                key={tag.id}
+                onClick={() => setMediaTypeFilter(tag.id as any)}
+                className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 border ${
+                  isActive
+                    ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-xs'
+                    : 'bg-[#141c38] border-[#1f2c58] text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                }`}
+              >
+                <span>{tag.label}</span>
+                <span className={`text-[9px] px-1 rounded-full font-mono ${isActive ? 'bg-sky-400/30 text-sky-200' : 'bg-black/40 text-slate-500'}`}>
+                  {tag.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Main Tab Content */}
       <div className="flex-1 overflow-y-auto p-2">
         {/* Bin Tab */}
@@ -260,23 +304,49 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
               <div className="space-y-1">
                 {filteredMedia.map((item) => {
                   const isSelected = selectedMediaId === item.id;
+                  const isScrubbing = hoverScrub?.id === item.id;
                   return (
                     <div
                       key={item.id}
                       onClick={() => onSelectMedia(item)}
                       onDoubleClick={() => onDoubleClickMedia(item)}
+                      onMouseMove={(e) => {
+                        if (item.type === 'video' && item.duration > 0) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                          const time = percent * item.duration;
+                          setHoverScrub({ id: item.id, percent, time });
+                          const vid = hoverVideoRefs.current[item.id];
+                          if (vid && isFinite(time)) {
+                            vid.currentTime = time;
+                          }
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (hoverScrub?.id === item.id) {
+                          setHoverScrub(null);
+                        }
+                      }}
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/json', JSON.stringify(item));
                         e.dataTransfer.effectAllowed = 'copy';
                       }}
-                      className={`px-2 py-1.5 rounded-md flex items-center justify-between cursor-pointer transition-all border ${
+                      className={`px-2 py-1.5 rounded-md flex items-center justify-between cursor-pointer transition-all border relative overflow-hidden group ${
                         isSelected
                           ? 'bg-[#1a1f28] border-sky-500/60 text-white shadow-xs'
                           : 'bg-[#141418] border-[#1d1d24] text-neutral-300 hover:bg-[#1a1a22] hover:border-neutral-700'
                       }`}
                     >
-                      <div className="flex items-center gap-2 truncate pr-2">
+                      {/* Hover scrub line for video */}
+                      {isScrubbing && (
+                        <div
+                          style={{ left: `${hoverScrub.percent * 100}%` }}
+                          className="absolute top-0 bottom-0 w-[2px] bg-sky-400 z-20 pointer-events-none shadow-xs"
+                        />
+                      )}
+
+                      <div className="flex items-center gap-2 truncate pr-2 relative z-10">
                         <span className="shrink-0 p-1 rounded bg-black/40 text-neutral-400">
                           {item.type === 'video' && <Film className="w-3.5 h-3.5 text-sky-400" />}
                           {item.type === 'audio' && <Music className="w-3.5 h-3.5 text-emerald-400" />}
@@ -288,13 +358,21 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
                           <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 font-mono">
                             <span>{item.type.toUpperCase()}</span>
                             <span>•</span>
-                            <span>{formatDurationSeconds(item.duration)}</span>
+                            <span>
+                              {isScrubbing
+                                ? `Scrub: ${formatDurationSeconds(hoverScrub.time)}`
+                                : formatDurationSeconds(item.duration)}
+                            </span>
                           </div>
                         </div>
                       </div>
 
-                      <span className="text-[10px] text-neutral-500 font-mono shrink-0">
-                        {formatDurationSeconds(item.duration)}
+                      <span className="text-[10px] text-neutral-500 font-mono shrink-0 relative z-10">
+                        {isScrubbing ? (
+                          <span className="text-sky-300 font-semibold">{formatDurationSeconds(hoverScrub.time)}</span>
+                        ) : (
+                          formatDurationSeconds(item.duration)
+                        )}
                       </span>
                     </div>
                   );
@@ -304,11 +382,29 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
               <div className="grid grid-cols-2 gap-1.5">
                 {filteredMedia.map((item) => {
                   const isSelected = selectedMediaId === item.id;
+                  const isScrubbing = hoverScrub?.id === item.id;
                   return (
                     <div
                       key={item.id}
                       onClick={() => onSelectMedia(item)}
                       onDoubleClick={() => onDoubleClickMedia(item)}
+                      onMouseMove={(e) => {
+                        if (item.type === 'video' && item.duration > 0) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                          const time = percent * item.duration;
+                          setHoverScrub({ id: item.id, percent, time });
+                          const vid = hoverVideoRefs.current[item.id];
+                          if (vid && isFinite(time)) {
+                            vid.currentTime = time;
+                          }
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (hoverScrub?.id === item.id) {
+                          setHoverScrub(null);
+                        }
+                      }}
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/json', JSON.stringify(item));
@@ -320,8 +416,28 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
                           : 'bg-[#141418] border-[#1d1d24] hover:border-neutral-700'
                       }`}
                     >
-                      <div className="aspect-video bg-black rounded overflow-hidden relative flex items-center justify-center border border-neutral-800">
-                        {item.thumbnail ? (
+                      <div className="aspect-video bg-black rounded overflow-hidden relative flex items-center justify-center border border-neutral-800 group">
+                        {item.url && item.type === 'video' ? (
+                          <>
+                            <video
+                              ref={(el) => {
+                                hoverVideoRefs.current[item.id] = el;
+                              }}
+                              src={item.url}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className={`w-full h-full object-cover ${isScrubbing ? 'block' : item.thumbnail ? 'hidden' : 'block'}`}
+                            />
+                            {item.thumbnail && !isScrubbing && (
+                              <img
+                                src={item.thumbnail}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </>
+                        ) : item.thumbnail ? (
                           <img
                             src={item.thumbnail}
                             alt={item.name}
@@ -330,8 +446,26 @@ export const ProjectBin: React.FC<ProjectBinProps> = ({
                         ) : (
                           <span className="text-[10px] text-neutral-500 font-mono">[{item.type}]</span>
                         )}
+
+                        {/* Hover Scrub Playhead & Progress Indicator */}
+                        {isScrubbing && (
+                          <div className="absolute inset-0 pointer-events-none">
+                            <div
+                              style={{ width: `${hoverScrub.percent * 100}%` }}
+                              className="absolute top-0 bottom-0 left-0 bg-sky-500/20"
+                            />
+                            <div
+                              style={{ left: `${hoverScrub.percent * 100}%` }}
+                              className="absolute top-0 bottom-0 w-[2px] bg-sky-400 shadow-md"
+                            />
+                            <div className="absolute top-1 left-1 bg-black/90 px-1.5 py-0.5 rounded text-[9px] text-sky-300 font-mono font-bold border border-sky-500/40">
+                              {formatDurationSeconds(hoverScrub.time)}
+                            </div>
+                          </div>
+                        )}
+
                         <span className="absolute bottom-1 right-1 bg-black/80 px-1 py-0.2 rounded text-[9px] text-neutral-300 font-mono">
-                          {formatDurationSeconds(item.duration)}
+                          {isScrubbing ? formatDurationSeconds(hoverScrub.time) : formatDurationSeconds(item.duration)}
                         </span>
                       </div>
                       <div className="text-xs truncate font-medium text-neutral-200 mt-1">

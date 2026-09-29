@@ -21,7 +21,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronRight,
-  Layers
+  Layers,
+  Crop
 } from 'lucide-react';
 import { BlendMode, Clip, LumetriSettings, AEPlugins, DEFAULT_AE_PLUGINS } from '../types/editor';
 
@@ -983,6 +984,145 @@ export const EffectControls: React.FC<EffectControlsProps> = ({
                 <option value="lighten">Lighten</option>
                 <option value="darken">Darken</option>
               </select>
+            </div>
+
+            {/* Crop Boundaries Section */}
+            <div className="space-y-2 pt-2 border-t border-[#1b254a]">
+              <div className="flex items-center justify-between text-slate-300 font-medium">
+                <span className="text-[11px] flex items-center gap-1.5">
+                  <Crop className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Crop Boundaries</span>
+                </span>
+                <button
+                  onClick={() =>
+                    onUpdateClip({
+                      ...selectedClip,
+                      transform: {
+                        ...selectedClip.transform,
+                        crop: { top: 0, bottom: 0, left: 0, right: 0 },
+                      },
+                    })
+                  }
+                  className="text-[10px] text-slate-400 hover:text-white"
+                  title="Reset Crop"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400 text-[10px]">
+                    <span>Left</span>
+                    <span className="font-mono text-sky-300">{selectedClip.transform.crop?.left || 0}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    value={selectedClip.transform.crop?.left || 0}
+                    onChange={(e) =>
+                      onUpdateClip({
+                        ...selectedClip,
+                        transform: {
+                          ...selectedClip.transform,
+                          crop: {
+                            top: selectedClip.transform.crop?.top || 0,
+                            bottom: selectedClip.transform.crop?.bottom || 0,
+                            left: Number(e.target.value),
+                            right: selectedClip.transform.crop?.right || 0,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full accent-sky-500 bg-[#172040] rounded h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400 text-[10px]">
+                    <span>Right</span>
+                    <span className="font-mono text-sky-300">{selectedClip.transform.crop?.right || 0}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    value={selectedClip.transform.crop?.right || 0}
+                    onChange={(e) =>
+                      onUpdateClip({
+                        ...selectedClip,
+                        transform: {
+                          ...selectedClip.transform,
+                          crop: {
+                            top: selectedClip.transform.crop?.top || 0,
+                            bottom: selectedClip.transform.crop?.bottom || 0,
+                            left: selectedClip.transform.crop?.left || 0,
+                            right: Number(e.target.value),
+                          },
+                        },
+                      })
+                    }
+                    className="w-full accent-sky-500 bg-[#172040] rounded h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400 text-[10px]">
+                    <span>Top</span>
+                    <span className="font-mono text-sky-300">{selectedClip.transform.crop?.top || 0}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    value={selectedClip.transform.crop?.top || 0}
+                    onChange={(e) =>
+                      onUpdateClip({
+                        ...selectedClip,
+                        transform: {
+                          ...selectedClip.transform,
+                          crop: {
+                            top: Number(e.target.value),
+                            bottom: selectedClip.transform.crop?.bottom || 0,
+                            left: selectedClip.transform.crop?.left || 0,
+                            right: selectedClip.transform.crop?.right || 0,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full accent-sky-500 bg-[#172040] rounded h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-400 text-[10px]">
+                    <span>Bottom</span>
+                    <span className="font-mono text-sky-300">{selectedClip.transform.crop?.bottom || 0}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    value={selectedClip.transform.crop?.bottom || 0}
+                    onChange={(e) =>
+                      onUpdateClip({
+                        ...selectedClip,
+                        transform: {
+                          ...selectedClip.transform,
+                          crop: {
+                            top: selectedClip.transform.crop?.top || 0,
+                            bottom: Number(e.target.value),
+                            left: selectedClip.transform.crop?.left || 0,
+                            right: selectedClip.transform.crop?.right || 0,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full accent-sky-500 bg-[#172040] rounded h-1 cursor-pointer"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
